@@ -110,23 +110,34 @@ public:
     
     // Get a complete line
     std::string getLine() {
-        skipWhitespaceAndComments();
+            skipWhitespaceAndComments();
+    
+    if (current_ >= end_)
+        return "";
         
-        if (current_ >= end_)
-            return "";
-            
-        const char* lineStart = current_;
+    // Remember starting position before we skip any character
+    const char* lineStart = current_;
+    
+    // Advance to end of line
+    while (current_ < end_ && *current_ != '\n')
+        current_++;
         
-        // Advance to end of line
-        while (current_ < end_ && *current_ != '\n')
-            current_++;
-            
-        // Move past newline if present
-        if (current_ < end_ && *current_ == '\n')
-            current_++;
-            
-        return std::string(lineStart, current_ - lineStart);
-    }
+    // Create the line string
+    std::string line(lineStart, current_ - lineStart);
+    
+    // Move past newline if present
+    if (current_ < end_ && *current_ == '\n')
+        current_++;
+        
+    // Trim trailing whitespace but NOT leading whitespace
+    // (leading numbers are important for gate IDs)
+    size_t endPos = line.find_last_not_of(" \t\r");
+    if (endPos != std::string::npos)
+        line = line.substr(0, endPos + 1);
+    
+    return line;
+}
+   
     
     // Peek at the next token without consuming it
     std::string peekToken() {

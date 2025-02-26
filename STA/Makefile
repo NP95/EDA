@@ -31,9 +31,10 @@ $(TARGET): $(OBJECTS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo "Linking complete!"
 
+
 # Compile source files
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp $(HEADERS)
-	$(CXX) $(CXXFLAGS) -I$(INCDIR) -c -o $@ $
+	$(CXX) $(CXXFLAGS) -I$(INCDIR) -c -o $@ $<
 	@echo "Compiled $<"
 
 # Clean up

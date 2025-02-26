@@ -6,37 +6,10 @@
 #include <vector>
 #include <unordered_map>
 #include <limits>
+#include "library.hpp"  // Include Library definition
 
 // Forward declarations
 class NetlistParser;
-class LibertyParser;
-
-class Library {
-public:
-    struct DelayTable {
-        std::vector<double> inputSlews;
-        std::vector<double> loadCaps;
-        std::vector<std::vector<double>> delayValues;
-        std::vector<std::vector<double>> slewValues;
-        
-        double interpolateDelay(double slew, double load) const;
-        double interpolateSlew(double slew, double load) const;
-    };
-
-private:
-    std::unordered_map<std::string, DelayTable> gateTables_;
-    double inverterCapacitance_;
-
-public:
-    Library() : inverterCapacitance_(0.0) {}
-    
-    double getDelay(const std::string& gateType, double inputSlew, double loadCap, int numInputs = 2) const;
-    double getOutputSlew(const std::string& gateType, double inputSlew, double loadCap, int numInputs = 2) const;
-    double getInverterCapacitance() const { return inverterCapacitance_; }
-    
-    // Friend class declaration
-    friend class LibertyParser;
-};
 
 class Circuit {
 public:
@@ -74,6 +47,26 @@ public:
     
     // Friend class declaration
     friend class NetlistParser;
+
+        // New accessor methods
+        size_t getNodeCount() const { return nodes_.size(); }
+        size_t getPrimaryInputCount() const { return primaryInputs_.size(); }
+        size_t getPrimaryOutputCount() const { return primaryOutputs_.size(); }
+        
+        // Method to get all node types for statistics
+        std::unordered_map<std::string, int> getNodeTypeCounts() const {
+            std::unordered_map<std::string, int> counts;
+            for (const auto& node : nodes_) {
+                counts[node.type]++;
+            }
+            return counts;
+        }
+        
+        // Iterators for accessing nodes if needed
+        const std::vector<Node>& getNodes() const { return nodes_; }
+        const std::vector<size_t>& getPrimaryInputs() const { return primaryInputs_; }
+        const std::vector<size_t>& getPrimaryOutputs() const { return primaryOutputs_; }
+    
 };
 
 #endif // CIRCUIT_HPP

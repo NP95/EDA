@@ -16,10 +16,10 @@ private:
     bool parseGate(const std::string& line);
     
     // New scanner-based parsing methods
-    bool parseScannerInputs();
-    bool parseScannerOutputs();
-    bool parseScannerDFF();
-    bool parseScannerGate();
+    bool parseScannerInputs(const std::string& line);
+    bool parseScannerOutputs(const std::string& line);
+    bool parseScannerDFF(const std::string& line);
+    bool parseScannerGate(const std::string& line);
 
 public:
     NetlistParser(const std::string& filename, Circuit& circuit, bool useScanner = true)
