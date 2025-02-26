@@ -1,0 +1,49 @@
+# Compiler and flags
+CXX = g++
+CXXFLAGS = -std=c++17 -Wall -Wextra -pedantic -O2
+LDFLAGS = 
+
+# Directories
+SRCDIR = src
+INCDIR = include
+OBJDIR = obj
+BINDIR = bin
+
+# Target executable
+TARGET = $(BINDIR)/sta
+
+# Source files
+SOURCES = $(wildcard $(SRCDIR)/*.cpp)
+OBJECTS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(SOURCES))
+
+# Header files (for dependency tracking)
+HEADERS = $(wildcard $(INCDIR)/*.hpp)
+
+# Default target
+all: directories $(TARGET)
+
+# Create necessary directories
+directories:
+	@mkdir -p $(OBJDIR) $(BINDIR)
+
+# Link the executable
+$(TARGET): $(OBJECTS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+	@echo "Linking complete!"
+
+# Compile source files
+$(OBJDIR)/%.o: $(SRCDIR)/%.cpp $(HEADERS)
+	$(CXX) $(CXXFLAGS) -I$(INCDIR) -c -o $@ $
+	@echo "Compiled $<"
+
+# Clean up
+clean:
+	rm -rf $(OBJDIR) $(BINDIR)
+	@echo "Cleanup complete!"
+
+# Run the program with two arguments
+run: all
+	./$(TARGET) $(ARGS)
+
+# Phony targets
+.PHONY: all clean directories run
