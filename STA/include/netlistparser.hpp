@@ -10,12 +10,13 @@ private:
     Circuit& circuit_;
     
     // Parsing methods for different circuit elements
+    // All methods consistently take a line parameter
     bool parseInputs(const std::string& line);
     bool parseOutputs(const std::string& line);
     bool parseDFF(const std::string& line);
     bool parseGate(const std::string& line);
     
-    // New scanner-based parsing methods
+    // Scanner-based parsing methods
     bool parseScannerInputs(const std::string& line);
     bool parseScannerOutputs(const std::string& line);
     bool parseScannerDFF(const std::string& line);
