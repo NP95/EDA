@@ -8,8 +8,8 @@ TARGET = sta
 run: $(TARGET)
 	./$(TARGET) NLDM_lib_max2Inp c17.isc
 
-$(TARGET): PA1Solution_kumaw010.cpp
-	$(CC) $(CFLAGS) PA1Solution_kumaw010.cpp -o $(TARGET)
+$(TARGET): PA1Solution.cpp
+	$(CC) $(CFLAGS) PA1Solution.cpp -o $(TARGET)
 
 clean:
 	rm -f $(TARGET)

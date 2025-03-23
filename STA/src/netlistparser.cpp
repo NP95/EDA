@@ -119,12 +119,12 @@ bool NetlistParser::parseScannerDFF(const std::string& line) {
         return false;
     }
     
-    // Extract output ID (gate ID) - everything before equals sign, trimmed
+    // Extract output ID (everything before equals sign, trimmed)
     std::string outputId = line.substr(0, eqPos);
     outputId.erase(0, outputId.find_first_not_of(" \t"));
     outputId.erase(outputId.find_last_not_of(" \t") + 1);
     
-    // Extract input ID - everything between parentheses, trimmed
+    // Extract input ID (everything between parentheses, trimmed)
     std::string inputId = line.substr(openParenPos + 1, closeParenPos - openParenPos - 1);
     inputId.erase(0, inputId.find_first_not_of(" \t"));
     inputId.erase(inputId.find_last_not_of(" \t") + 1);
@@ -135,14 +135,18 @@ bool NetlistParser::parseScannerDFF(const std::string& line) {
         return false;
     }
     
-    // Create DFF node
-    size_t dffNodeId = circuit_.addNode(outputId, "DFF", 1);
+    // NEW APPROACH: Split DFF into separate input and output nodes
     
-    // Create signal node for input if it doesn't exist
-    circuit_.addNode(inputId, "SIGNAL");
+    // Create the output node as a pseudo-output node (but not a primary output)
+    size_t outputNodeId = circuit_.addNode(outputId, "OUTPUT", 0);
     
-    // Create connection
-    circuit_.addConnection(inputId, outputId);
+    // Create the input node as a pseudo-input node (but not a primary input)
+    size_t inputNodeId = circuit_.addNode(inputId, "INPUT", 0);
+    
+    // NOTE: We do NOT create a connection between these nodes for timing purposes
+    // This effectively breaks the feedback loop for static timing analysis
+    
+    std::cout << "Parsed DFF: Input=" << inputId << ", Output=" << outputId << std::endl;
     
     return true;
 }
@@ -294,48 +298,18 @@ bool NetlistParser::parseDFF(const std::string& line) {
     inputId.erase(0, inputId.find_first_not_of(" \t"));
     inputId.erase(inputId.find_last_not_of(" \t") + 1);
     
-    // Make this consistent with the scanner version - create a DFF node
-    size_t dffNodeId = circuit_.addNode(outputId, "DFF", 1);
-    circuit_.addNode(inputId, "SIGNAL");
-    circuit_.addConnection(inputId, outputId);
+    // NEW APPROACH: Split DFF into separate input and output nodes
     
-    return true;
-}
-
-bool NetlistParser::parseGate(const std::string& line) {
-    // Parse line: <gate_id> = <gate_type> ( <input_list> )
-    size_t eqPos = line.find("=");
-    size_t openParenPos = line.find("(");
-    size_t closeParenPos = line.find(")");
+    // Create the output node as a pseudo-output node (but not a primary output)
+    size_t outputNodeId = circuit_.addNode(outputId, "OUTPUT", 0);
     
-    if (eqPos == std::string::npos || openParenPos == std::string::npos || 
-        closeParenPos == std::string::npos) {
-        std::cerr << "Error: Malformed gate line: " << line << std::endl;
-        return false;
-    }
+    // Create the input node as a pseudo-input node (but not a primary input)
+    size_t inputNodeId = circuit_.addNode(inputId, "INPUT", 0);
     
-    std::string gateId = line.substr(0, eqPos);
-    gateId.erase(0, gateId.find_first_not_of(" \t"));
-    gateId.erase(gateId.find_last_not_of(" \t") + 1);
+    // NOTE: We do NOT create a connection between these nodes for timing purposes
+    // This effectively breaks the feedback loop for static timing analysis
     
-    std::string gateType = line.substr(eqPos + 1, openParenPos - eqPos - 1);
-    gateType.erase(0, gateType.find_first_not_of(" \t"));
-    gateType.erase(gateType.find_last_not_of(" \t") + 1);
-    
-    std::string inputListStr = line.substr(openParenPos + 1, closeParenPos - openParenPos - 1);
-    std::vector<std::string> inputs = tokenize(inputListStr, ',');
-    
-    // Add gate to circuit
-    size_t gateNodeId = circuit_.addNode(gateId, gateType, inputs.size());
-    
-    // Add connections for each input
-    for (const auto& input : inputs) {
-        // Create input node if it doesn't exist
-        circuit_.addNode(input, "SIGNAL");
-        
-        // Connect input to gate
-        circuit_.addConnection(input, gateId);
-    }
+    std::cout << "Parsed DFF: Input=" << inputId << ", Output=" << outputId << std::endl;
     
     return true;
 }
