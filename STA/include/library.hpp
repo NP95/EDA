@@ -1,4 +1,4 @@
-// include/library.hpp
+// include/library.hpp - Add the declaration
 #ifndef LIBRARY_HPP
 #define LIBRARY_HPP
 
@@ -13,7 +13,7 @@ public:
         std::vector<double> loadCaps;
         std::vector<std::vector<double>> delayValues;
         std::vector<std::vector<double>> slewValues;
-        
+
         double interpolateDelay(double slew, double load) const;
         double interpolateSlew(double slew, double load) const;
         
@@ -35,6 +35,7 @@ public:
     
     // For debugging
     void printTables() const;
+    void printAvailableGates() const;  // Add this declaration
 
     // Friend class declaration to allow parser direct access
     friend class LibertyParser;

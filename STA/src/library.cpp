@@ -79,6 +79,13 @@ double Library::getDelay(const std::string& gateType, double inputSlew, double l
         return 0.0;
     }
     
+    // Check if the delay table is properly initialized
+    const DelayTable& table = it->second;
+    if (table.inputSlews.empty() || table.loadCaps.empty() || table.delayValues.empty()) {
+        std::cerr << "Warning: Delay table for " << gateType << " is not properly initialized" << std::endl;
+        return 0.0;
+    }
+    
     // Get the delay value
     double delay = it->second.interpolateDelay(inputSlew, loadCap);
     
@@ -90,11 +97,19 @@ double Library::getDelay(const std::string& gateType, double inputSlew, double l
     return delay;
 }
 
+
 double Library::getOutputSlew(const std::string& gateType, double inputSlew, double loadCap, int numInputs) const {
     // Find the gate in the library
     auto it = gateTables_.find(gateType);
     if (it == gateTables_.end()) {
         std::cerr << "Warning: Gate type " << gateType << " not found in library" << std::endl;
+        return 0.0;
+    }
+    
+    // Check if the slew table is properly initialized
+    const DelayTable& table = it->second;
+    if (table.inputSlews.empty() || table.loadCaps.empty() || table.slewValues.empty()) {
+        std::cerr << "Warning: Slew table for " << gateType << " is not properly initialized" << std::endl;
         return 0.0;
     }
     
@@ -108,6 +123,7 @@ double Library::getOutputSlew(const std::string& gateType, double inputSlew, dou
     
     return slew;
 }
+
 
 void Library::printTables() const {
     for (const auto& [gateName, table] : gateTables_) {
@@ -142,5 +158,12 @@ void Library::printTables() const {
             }
             std::cout << std::endl;
         }
+    }
+}
+
+void Library::printAvailableGates() const {
+    std::cout << "Available gates in library (" << gateTables_.size() << "):" << std::endl;
+    for (const auto& [name, _] : gateTables_) {
+        std::cout << "  " << name << std::endl;
     }
 }

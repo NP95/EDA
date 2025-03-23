@@ -140,6 +140,10 @@ int main(int argc, char* argv[]) {
         std::cerr << "Error parsing liberty file: " << libertyFile << "\n";
         return 1;
     }
+
+    std::cout << "Verifying library contents:" << std::endl;
+    library.printAvailableGates();
+
     
     // Parse circuit file
     std::cout << "Parsing circuit file: " << circuitFile << "\n";

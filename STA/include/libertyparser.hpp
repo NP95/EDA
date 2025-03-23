@@ -20,6 +20,10 @@ public:
         : Parser(filename, useScanner), library_(library) {}
     
     bool parse() override;
+    void processValuesLine(const std::string& line, std::vector<std::vector<double>>& tableValues, int& rowCount);
+
+
+    
 };
 
 #endif // LIBERTY_PARSER_HPP

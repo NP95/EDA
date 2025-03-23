@@ -207,10 +207,14 @@ void StaticTimingAnalyzer::calculateLoadCapacitance() {
 }
 
 void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
+    std::cout << "Processing node " << nodeId << " (type: " 
+              << circuit_.getNode(nodeId).type << ")" << std::endl;
+              
     Circuit::Node& node = const_cast<Circuit::Node&>(circuit_.getNode(nodeId));
     
     // Skip primary inputs as they have their arrival times and slews preset
     if (node.type == "INPUT") {
+        std::cout << "  Skipping INPUT node" << std::endl;
         return;
     }
     
@@ -220,23 +224,33 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
     
     // No fanins means this is probably a primary input or special node
     if (node.fanins.empty()) {
+        std::cout << "  Node has no fanins, treating as special node" << std::endl;
         node.arrivalTime = 0.0;
         node.outputSlew = 2.0; // Default input slew
         return;
     }
     
+    std::cout << "  Processing " << node.fanins.size() << " fanins" << std::endl;
+    
     // Process each fanin to find the latest arrival time
     for (size_t faninId : node.fanins) {
+        std::cout << "  Processing fanin " << faninId << std::endl;
         const Circuit::Node& faninNode = circuit_.getNode(faninId);
         
-        // Skip if gate type is OUTPUT (they don't contribute delay)
+        // For OUTPUT nodes, take the maximum arrival time from fanins
         if (node.type == "OUTPUT") {
-            node.arrivalTime = faninNode.arrivalTime;
-            node.outputSlew = faninNode.outputSlew;
+            if (faninNode.arrivalTime > maxArrivalTime) {
+                maxArrivalTime = faninNode.arrivalTime;
+                outputSlew = faninNode.outputSlew;
+            }
             continue;
         }
         
         // Calculate delay from this fanin to current node
+        std::cout << "  Calculating delay for gate type " << node.type 
+                  << " with input slew " << faninNode.outputSlew 
+                  << " and load cap " << node.loadCapacitance << std::endl;
+                  
         double delay = library_.getDelay(
             node.type, 
             faninNode.outputSlew,
@@ -245,6 +259,7 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
         );
         
         // Calculate output slew
+        std::cout << "  Calculating output slew" << std::endl;
         double thisOutputSlew = library_.getOutputSlew(
             node.type,
             faninNode.outputSlew,
@@ -254,6 +269,9 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
         
         // Calculate arrival time from this fanin
         double arrivalTime = faninNode.arrivalTime + delay;
+        std::cout << "  Arrival time contribution: " << arrivalTime 
+                  << " (fanin arrival: " << faninNode.arrivalTime 
+                  << " + delay: " << delay << ")" << std::endl;
         
         // Keep track of maximum arrival time and corresponding slew
         if (arrivalTime > maxArrivalTime) {
@@ -263,12 +281,15 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
     }
     
     // Set node's arrival time and output slew
+    std::cout << "  Setting arrival time to " << maxArrivalTime 
+              << " and output slew to " << outputSlew << std::endl;
     node.arrivalTime = maxArrivalTime;
     node.outputSlew = outputSlew;
 }
 
+
 void StaticTimingAnalyzer::forwardTraversal() {
-    // To be implemented in Phase 2
+    // Process each node in topological order
     for (size_t nodeId : topoOrder_) {
         processNodeForward(nodeId);
     }
@@ -276,13 +297,14 @@ void StaticTimingAnalyzer::forwardTraversal() {
     // Determine circuit delay (maximum arrival time at primary outputs)
     circuitDelay_ = 0.0;
     for (size_t outputId : circuit_.getPrimaryOutputs()) {
-        circuitDelay_ = std::max(circuitDelay_, circuit_.getNode(outputId).arrivalTime);
+        const Circuit::Node& outputNode = circuit_.getNode(outputId);
+        std::cout << "Primary output " << outputNode.name 
+                  << " arrival time: " << outputNode.arrivalTime << " ps" << std::endl;
+        circuitDelay_ = std::max(circuitDelay_, outputNode.arrivalTime);
     }
     
     std::cout << "Forward traversal completed. Circuit delay: " << circuitDelay_ << " ps" << std::endl;
-
 }
-
 
 // Then fix the backwardTraversal function's processNodeBackward method
 void StaticTimingAnalyzer::processNodeBackward(size_t nodeId) {
