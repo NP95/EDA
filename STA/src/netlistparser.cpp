@@ -138,10 +138,10 @@ bool NetlistParser::parseScannerDFF(const std::string& line) {
     // NEW APPROACH: Split DFF into separate input and output nodes
     
     // Create the output node as a pseudo-output node (but not a primary output)
-    size_t outputNodeId = circuit_.addNode(outputId, "OUTPUT", 0);
+    [[maybe_unused]]   size_t outputNodeId = circuit_.addNode(outputId, "OUTPUT", 0);
     
     // Create the input node as a pseudo-input node (but not a primary input)
-    size_t inputNodeId = circuit_.addNode(inputId, "INPUT", 0);
+    [[maybe_unused]]   size_t inputNodeId = circuit_.addNode(inputId, "INPUT", 0);
     
     // NOTE: We do NOT create a connection between these nodes for timing purposes
     // This effectively breaks the feedback loop for static timing analysis
@@ -221,12 +221,12 @@ bool NetlistParser::parseScannerGate(const std::string& line) {
     }
     
     // Create gate node
-    size_t gateNodeId = circuit_.addNode(gateId, gateType, inputs.size());
+    [[maybe_unused]]   size_t gateNodeId = circuit_.addNode(gateId, gateType, inputs.size());
     
     // Create input nodes (if they don't exist) and connections
     for (const auto& input : inputs) {
         // Create or get input node
-        size_t inputNodeId = circuit_.addNode(input, "SIGNAL");
+        [[maybe_unused]]    size_t inputNodeId = circuit_.addNode(input, "SIGNAL");
         
         // Connect input to gate
         circuit_.addConnection(input, gateId);
@@ -277,6 +277,56 @@ bool NetlistParser::parseOutputs(const std::string& line) {
     return true;
 }
 
+
+bool NetlistParser::parseGate(const std::string& line) {
+    // Extract components from "<gate_id> = <gate_type> ( <input_list> )"
+    size_t eqPos = line.find("=");
+    size_t openParenPos = line.find("(");
+    size_t closeParenPos = line.find(")");
+    
+    if (eqPos == std::string::npos || openParenPos == std::string::npos || 
+        closeParenPos == std::string::npos) {
+        std::cerr << "Error: Malformed gate line: " << line << std::endl;
+        return false;
+    }
+    
+    // Extract gate ID (everything before equals sign)
+    std::string gateId = line.substr(0, eqPos);
+    gateId.erase(0, gateId.find_first_not_of(" \t"));
+    gateId.erase(gateId.find_last_not_of(" \t") + 1);
+    
+    // Extract gate type (between equals sign and open parenthesis)
+    std::string gateType = line.substr(eqPos + 1, openParenPos - eqPos - 1);
+    gateType.erase(0, gateType.find_first_not_of(" \t"));
+    gateType.erase(gateType.find_last_not_of(" \t") + 1);
+    
+    // Extract input list (between parentheses)
+    std::string inputListStr = line.substr(openParenPos + 1, closeParenPos - openParenPos - 1);
+    
+    // Tokenize the input list by commas
+    std::vector<std::string> inputs = tokenize(inputListStr, ',');
+    
+    // Validate extracted values
+    if (gateId.empty() || gateType.empty()) {
+        std::cerr << "Error: Empty gate ID or gate type in gate line: " << line << std::endl;
+        return false;
+    }
+    
+    // Create gate node
+    [[maybe_unused]]  size_t gateNodeId = circuit_.addNode(gateId, gateType, inputs.size());
+    
+    // Create input nodes (if they don't exist) and connections
+    for (const auto& input : inputs) {
+        // Create or get input node
+        [[maybe_unused]]   size_t inputNodeId = circuit_.addNode(input, "SIGNAL");
+        
+        // Connect input to gate
+        circuit_.addConnection(input, gateId);
+    }
+    
+    return true;
+}
+
 bool NetlistParser::parseDFF(const std::string& line) {
     // Parse line: <id> = DFF ( <input> )
     size_t eqPos = line.find("=");
@@ -301,10 +351,10 @@ bool NetlistParser::parseDFF(const std::string& line) {
     // NEW APPROACH: Split DFF into separate input and output nodes
     
     // Create the output node as a pseudo-output node (but not a primary output)
-    size_t outputNodeId = circuit_.addNode(outputId, "OUTPUT", 0);
+    [[maybe_unused]]   size_t outputNodeId = circuit_.addNode(outputId, "OUTPUT", 0);
     
     // Create the input node as a pseudo-input node (but not a primary input)
-    size_t inputNodeId = circuit_.addNode(inputId, "INPUT", 0);
+    [[maybe_unused]]    size_t inputNodeId = circuit_.addNode(inputId, "INPUT", 0);
     
     // NOTE: We do NOT create a connection between these nodes for timing purposes
     // This effectively breaks the feedback loop for static timing analysis
