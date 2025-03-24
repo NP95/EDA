@@ -13,7 +13,7 @@ public:
         std::vector<double> loadCaps;
         std::vector<std::vector<double>> delayValues;
         std::vector<std::vector<double>> slewValues;
-        double capacitance;
+        double capacitance = 0.0;
 
         double interpolateDelay(double slew, double load) const;
         double interpolateSlew(double slew, double load) const;

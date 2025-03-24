@@ -12,69 +12,72 @@ double Library::DelayTable::interpolateSlew(double slew, double load) const {
 }
 
 double Library::DelayTable::interpolate(double slew, double load, 
-                                     const std::vector<std::vector<double>>& table) const {
-    // Find indices where inputSlew fits
-    size_t i1 = 0, i2 = 0;
-    for (size_t i = 0; i < inputSlews.size() - 1; ++i) {
-        if (inputSlews[i] <= slew && slew <= inputSlews[i+1]) {
-            i1 = i;
-            i2 = i + 1;
-            break;
-        }
-    }
-    
-    // If slew is outside the range, use the closest indices
-    if (slew < inputSlews.front()) {
-        i1 = 0;
-        i2 = 1;
-    } else if (slew > inputSlews.back()) {
-        i1 = inputSlews.size() - 2;
-        i2 = inputSlews.size() - 1;
-    }
-    
-    // Find indices where loadCap fits
-    size_t j1 = 0, j2 = 0;
-    for (size_t j = 0; j < loadCaps.size() - 1; ++j) {
-        if (loadCaps[j] <= load && load <= loadCaps[j+1]) {
-            j1 = j;
-            j2 = j + 1;
-            break;
-        }
-    }
-    
-    // If load is outside the range, use the closest indices
-    if (load < loadCaps.front()) {
-        j1 = 0;
-        j2 = 1;
-    } else if (load > loadCaps.back()) {
-        j1 = loadCaps.size() - 2;
-        j2 = loadCaps.size() - 1;
-    }
-    
-    // Get table values
-    double v11 = table[i1][j1];
-    double v12 = table[i1][j2];
-    double v21 = table[i2][j1];
-    double v22 = table[i2][j2];
-    
-    // Get coordinates
-    double t1 = inputSlews[i1];
-    double t2 = inputSlews[i2];
-    double C1 = loadCaps[j1];
-    double C2 = loadCaps[j2];
-    
-    // Apply the 2D interpolation formula from the assignment
-    double slew_ns = slew / 1000.0;
+    const std::vector<std::vector<double>>& table) const {
+// Find indices where inputSlew fits
+size_t i1 = 0, i2 = 0;
+for (size_t i = 0; i < inputSlews.size() - 1; ++i) {
+if (inputSlews[i] <= slew && slew <= inputSlews[i+1]) {
+i1 = i;
+i2 = i + 1;
+break;
+}
+}
 
-    // Apply the 2D interpolation formula using slew in ns
-    double result = (v11*(C2-load)*(t2-slew_ns) + 
-                    v12*(load-C1)*(t2-slew_ns) + 
-                    v21*(C2-load)*(slew_ns-t1) + 
-                    v22*(load-C1)*(slew_ns-t1)) / 
-                   ((C2-C1)*(t2-t1));
-    
-    // Convert result back to ps for circuit analysis
-    return result * 1000.0;}
+// If slew is outside the range, use the closest indices
+if (slew < inputSlews.front()) {
+i1 = 0;
+i2 = 1;
+} else if (slew > inputSlews.back()) {
+i1 = inputSlews.size() - 2;
+i2 = inputSlews.size() - 1;
+}
+
+// Find indices where loadCap fits
+size_t j1 = 0, j2 = 0;
+for (size_t j = 0; j < loadCaps.size() - 1; ++j) {
+if (loadCaps[j] <= load && load <= loadCaps[j+1]) {
+j1 = j;
+j2 = j + 1;
+break;
+}
+}
+
+// If load is outside the range, use the closest indices
+if (load < loadCaps.front()) {
+j1 = 0;
+j2 = 1;
+} else if (load > loadCaps.back()) {
+j1 = loadCaps.size() - 2;
+j2 = loadCaps.size() - 1;
+}
+
+// Get table values
+double v11 = table[i1][j1];
+double v12 = table[i1][j2];
+double v21 = table[i2][j1];
+double v22 = table[i2][j2];
+
+// Get coordinates
+double t1 = inputSlews[i1];
+double t2 = inputSlews[i2];
+double C1 = loadCaps[j1];
+double C2 = loadCaps[j2];
+
+// Convert input slew from ps to ns for interpolation
+double slew_ns = slew / 1000.0;
+
+// Apply the 2D interpolation formula using slew in ns
+double result = (v11*(C2-load)*(t2-slew_ns) + 
+v12*(load-C1)*(t2-slew_ns) + 
+v21*(C2-load)*(slew_ns-t1) + 
+v22*(load-C1)*(slew_ns-t1)) / 
+((C2-C1)*(t2-t1));
+
+// Convert result back to ps for circuit analysis
+return result * 1000.0;
+}
+
+
 
 double Library::getDelay(const std::string& gateType, double inputSlew, double loadCap, int numInputs) const {
     // Find the gate in the library
@@ -129,6 +132,18 @@ double Library::getOutputSlew(const std::string& gateType, double inputSlew, dou
     return slew;
 }
 
+double Library::getGateCapacitance(const std::string& gateType) const {
+    // Find the gate in the library
+    auto it = gateTables_.find(gateType);
+    if (it != gateTables_.end()) {
+        return it->second.capacitance;
+    }
+    
+    // Fall back to inverter capacitance if gate not found
+    std::cerr << "Warning: Capacitance for gate type " << gateType 
+              << " not found, using inverter capacitance instead" << std::endl;
+    return inverterCapacitance_;
+}
 
 void Library::printTables() const {
     for (const auto& [gateName, table] : gateTables_) {
