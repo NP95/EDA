@@ -107,7 +107,7 @@ void StaticTimingAnalyzer::run() {
     computeTopologicalOrder();
     
     // 3. Calculate load capacitance for each gate
-    calculateLoadCapacitance();
+    //calculateLoadCapacitance();
     
     // 4. Perform forward traversal to calculate arrival times
     forwardTraversal();
@@ -213,36 +213,45 @@ void StaticTimingAnalyzer::calculateLoadCapacitance() {
 
 
 void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
-    // Remove or comment out: std::cout << "Processing node " << nodeId << " (type: " << circuit_.getNode(nodeId).type << ")" << std::endl;
-              
     Circuit::Node& node = const_cast<Circuit::Node&>(circuit_.getNode(nodeId));
     
-    // Skip primary inputs as they have their arrival times and slews preset
+    // Skip processing for input nodes - they have predetermined values
     if (node.type == "INPUT") {
-        // Remove or comment out: std::cout << "  Skipping INPUT node" << std::endl;
         return;
     }
     
-    // For other gates, calculate arrival time based on fanins
+    // For normal gates, calculate arrival time based on fanins
     double maxArrivalTime = 0.0;
     double outputSlew = 0.0;
     
-    // No fanins means this is probably a primary input or special node
+    // No fanins means this is probably a special node
     if (node.fanins.empty()) {
-        // Remove or comment out: std::cout << "  Node has no fanins, treating as special node" << std::endl;
         node.arrivalTime = 0.0;
-        node.outputSlew = 2.0; // Default input slew
+        node.outputSlew = 2.0; // Default input slew for special nodes
         return;
     }
     
-    // Remove or comment out: std::cout << "  Processing " << node.fanins.size() << " fanins" << std::endl;
+    // Calculate load capacitance on-the-fly
+    double loadCap = 0.0;
+    
+    // Special case for primary outputs with no fanouts
+    if (node.type == "OUTPUT" && node.fanouts.empty()) {
+        loadCap = 4.0 * library_.getInverterCapacitance();
+    } else {
+        // Add input capacitance from each fanout gate
+        for (size_t fanoutId : node.fanouts) {
+            const Circuit::Node& fanoutNode = circuit_.getNode(fanoutId);
+            if (fanoutNode.type != "INPUT" && fanoutNode.type != "OUTPUT") {
+                loadCap += library_.getGateCapacitance(fanoutNode.type);
+            }
+        }
+    }
     
     // Process each fanin to find the latest arrival time
     for (size_t faninId : node.fanins) {
-        // Remove or comment out: std::cout << "  Processing fanin " << faninId << std::endl;
         const Circuit::Node& faninNode = circuit_.getNode(faninId);
         
-        // For OUTPUT nodes, take the maximum arrival time from fanins
+        // Special handling for OUTPUT nodes
         if (node.type == "OUTPUT") {
             if (faninNode.arrivalTime > maxArrivalTime) {
                 maxArrivalTime = faninNode.arrivalTime;
@@ -251,40 +260,35 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
             continue;
         }
         
-        // Calculate delay from this fanin to current node
-        // Remove or comment out: std::cout << "  Calculating delay for gate type " << node.type << " with input slew " << faninNode.outputSlew << " and load cap " << node.loadCapacitance << std::endl;
-                  
+        // Calculate delay and output slew using the on-the-fly load capacitance
         double delay = library_.getDelay(
             node.type, 
             faninNode.outputSlew,
-            node.loadCapacitance,
+            loadCap,
             node.numInputs
         );
         
-        // Calculate output slew
-        // Remove or comment out: std::cout << "  Calculating output slew" << std::endl;
         double thisOutputSlew = library_.getOutputSlew(
             node.type,
             faninNode.outputSlew,
-            node.loadCapacitance,
+            loadCap,
             node.numInputs
         );
         
-        // Calculate arrival time from this fanin
         double arrivalTime = faninNode.arrivalTime + delay;
-        // Remove or comment out: std::cout << "  Arrival time contribution: " << arrivalTime << " (fanin arrival: " << faninNode.arrivalTime << " + delay: " << delay << ")" << std::endl;
-        
-        // Keep track of maximum arrival time and corresponding slew
         if (arrivalTime > maxArrivalTime) {
             maxArrivalTime = arrivalTime;
             outputSlew = thisOutputSlew;
         }
     }
     
-    // Set node's arrival time and output slew
-    // Remove or comment out: std::cout << "  Setting arrival time to " << maxArrivalTime << " and output slew to " << outputSlew << std::endl;
     node.arrivalTime = maxArrivalTime;
     node.outputSlew = outputSlew;
+    
+    // Update circuit delay if this is a primary output
+    if (node.type == "OUTPUT" && node.fanouts.empty()) {
+        circuitDelay_ = std::max(circuitDelay_, node.arrivalTime);
+    }
 }
 
 void StaticTimingAnalyzer::forwardTraversal() {
@@ -311,7 +315,6 @@ void StaticTimingAnalyzer::processNodeBackward(size_t nodeId) {
     
     // For primary outputs, required time is already set
     if (node.type == "OUTPUT" && node.fanouts.empty()) {
-        // Calculate slack
         node.slack = node.requiredTime - node.arrivalTime;
         return;
     }
@@ -324,7 +327,7 @@ void StaticTimingAnalyzer::processNodeBackward(size_t nodeId) {
     }
     
     // Start with maximum possible required time
-    node.requiredTime = std::numeric_limits<double>::infinity();
+    double minRequiredTime = std::numeric_limits<double>::infinity();
     
     // Process each fanout to find the earliest required time
     for (size_t fanoutId : node.fanouts) {
@@ -332,18 +335,31 @@ void StaticTimingAnalyzer::processNodeBackward(size_t nodeId) {
         
         // Special case for OUTPUT nodes (they don't add delay)
         if (fanoutNode.type == "OUTPUT") {
-            node.requiredTime = std::min(node.requiredTime, fanoutNode.requiredTime);
+            minRequiredTime = std::min(minRequiredTime, fanoutNode.requiredTime);
             continue;
         }
         
-        // Find the specific input pin of the fanout that connects to this node
-        // Removed the unused inputPinIndex variable
+        // Calculate load capacitance for this fanout gate
+        double loadCap = 0.0;
         
-        // Calculate delay from this node to its fanout
+        // Special case for primary outputs
+        if (fanoutNode.type == "OUTPUT" && fanoutNode.fanouts.empty()) {
+            loadCap = 4.0 * library_.getInverterCapacitance();
+        } else {
+            // Add input capacitance from each fanout's fanout
+            for (size_t nextFanoutId : fanoutNode.fanouts) {
+                const Circuit::Node& nextFanoutNode = circuit_.getNode(nextFanoutId);
+                if (nextFanoutNode.type != "INPUT" && nextFanoutNode.type != "OUTPUT") {
+                    loadCap += library_.getGateCapacitance(nextFanoutNode.type);
+                }
+            }
+        }
+        
+        // Calculate delay using on-the-fly load capacitance
         double delay = library_.getDelay(
             fanoutNode.type,
             node.outputSlew,
-            fanoutNode.loadCapacitance,
+            loadCap,
             fanoutNode.numInputs
         );
         
@@ -351,13 +367,15 @@ void StaticTimingAnalyzer::processNodeBackward(size_t nodeId) {
         double reqTime = fanoutNode.requiredTime - delay;
         
         // Keep the earliest required time
-        node.requiredTime = std::min(node.requiredTime, reqTime);
+        minRequiredTime = std::min(minRequiredTime, reqTime);
     }
     
     // If we couldn't determine a finite required time, use the circuit constraint
-    if (std::isinf(node.requiredTime)) {
-        node.requiredTime = 1.1 * circuitDelay_;
+    if (std::isinf(minRequiredTime)) {
+        minRequiredTime = 1.1 * circuitDelay_;
     }
+    
+    node.requiredTime = minRequiredTime;
     
     // Calculate slack
     node.slack = node.requiredTime - node.arrivalTime;
@@ -421,6 +439,19 @@ void StaticTimingAnalyzer::identifyCriticalPath() {
         
         for (size_t faninId : node.fanins) {
             const Circuit::Node& faninNode = circuit_.getNode(faninId);
+
+            // Calculate load capacitance on-the-fly
+        double loadCap = 0.0;
+     if (node.type == "OUTPUT" && node.fanouts.empty()) {
+    loadCap = 4.0 * library_.getInverterCapacitance();
+     } else {
+    for (size_t fanoutId : node.fanouts) {
+        const Circuit::Node& fanoutNode = circuit_.getNode(fanoutId);
+        if (fanoutNode.type != "INPUT" && fanoutNode.type != "OUTPUT") {
+            loadCap += library_.getGateCapacitance(fanoutNode.type);
+        }
+    }
+}
             
             // Calculate delay from this fanin to current node
             double delay = library_.getDelay(
