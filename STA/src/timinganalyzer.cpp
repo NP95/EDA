@@ -291,6 +291,7 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
     }
 }
 
+
 void StaticTimingAnalyzer::forwardTraversal() {
     // Process each node in topological order
     for (size_t nodeId : topoOrder_) {
@@ -441,23 +442,23 @@ void StaticTimingAnalyzer::identifyCriticalPath() {
             const Circuit::Node& faninNode = circuit_.getNode(faninId);
 
             // Calculate load capacitance on-the-fly
-        double loadCap = 0.0;
-     if (node.type == "OUTPUT" && node.fanouts.empty()) {
-    loadCap = 4.0 * library_.getInverterCapacitance();
-     } else {
-    for (size_t fanoutId : node.fanouts) {
-        const Circuit::Node& fanoutNode = circuit_.getNode(fanoutId);
-        if (fanoutNode.type != "INPUT" && fanoutNode.type != "OUTPUT") {
-            loadCap += library_.getGateCapacitance(fanoutNode.type);
-        }
-    }
-}
+            double loadCap = 0.0;
+            if (node.type == "OUTPUT" && node.fanouts.empty()) {
+                loadCap = 4.0 * library_.getInverterCapacitance();
+            } else {
+                for (size_t fanoutId : node.fanouts) {
+                    const Circuit::Node& fanoutNode = circuit_.getNode(fanoutId);
+                    if (fanoutNode.type != "INPUT" && fanoutNode.type != "OUTPUT") {
+                        loadCap += library_.getGateCapacitance(fanoutNode.type);
+                    }
+                }
+            }
             
             // Calculate delay from this fanin to current node
             double delay = library_.getDelay(
                 node.type,
                 faninNode.outputSlew,
-                node.loadCapacitance,
+                loadCap,
                 node.numInputs
             );
             
@@ -481,7 +482,6 @@ void StaticTimingAnalyzer::identifyCriticalPath() {
     
     std::cout << "Critical path identified with " << criticalPath_.size() << " nodes." << std::endl;
 }
-
 
 
 void StaticTimingAnalyzer::writeResults(const std::string& filename) {

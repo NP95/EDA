@@ -24,44 +24,17 @@ double Library::DelayTable::interpolate(double slew, double load,
     // Convert input slew from ps to ns for lookup table (important!)
     double slew_ns = slew / 1000.0;
     
-    // Keep your original index finding logic but ensure boundary handling matches reference
-    size_t i1 = 0, i2 = 0;
-    // Find indices where inputSlew fits
-    for (size_t i = 0; i < inputSlews.size() - 1; ++i) {
-        if (inputSlews[i] <= slew_ns && slew_ns <= inputSlews[i+1]) {
-            i1 = i;
-            i2 = i + 1;
-            break;
-        }
-    }
+    // Use upper_bound to find indices exactly like the reference
+    auto slewIt = std::upper_bound(inputSlews.begin(), inputSlews.end(), slew_ns);
+    size_t i2 = std::distance(inputSlews.begin(), slewIt);
+    size_t i1 = std::max<size_t>(0, i2 - 1);
+    i2 = std::min<size_t>(inputSlews.size() - 1, i2);
     
-    // Important: Handle out-of-bounds values exactly like the reference
-    if (slew_ns < inputSlews.front()) {
-        i1 = 0;
-        i2 = 1;
-    } else if (slew_ns > inputSlews.back()) {
-        i1 = inputSlews.size() - 2;
-        i2 = inputSlews.size() - 1;
-    }
-    
-    // Find indices where loadCap fits (keep your original approach)
-    size_t j1 = 0, j2 = 0;
-    for (size_t j = 0; j < loadCaps.size() - 1; ++j) {
-        if (loadCaps[j] <= load && load <= loadCaps[j+1]) {
-            j1 = j;
-            j2 = j + 1;
-            break;
-        }
-    }
-    
-    // Handle load cap boundary conditions
-    if (load < loadCaps.front()) {
-        j1 = 0;
-        j2 = 1;
-    } else if (load > loadCaps.back()) {
-        j1 = loadCaps.size() - 2;
-        j2 = loadCaps.size() - 1;
-    }
+    // Use upper_bound to find indices for load capacitance
+    auto loadIt = std::upper_bound(loadCaps.begin(), loadCaps.end(), load);
+    size_t j2 = std::distance(loadCaps.begin(), loadIt);
+    size_t j1 = std::max<size_t>(0, j2 - 1);
+    j2 = std::min<size_t>(loadCaps.size() - 1, j2);
     
     // Get table values 
     double v11 = table[i1][j1];
@@ -91,8 +64,7 @@ double Library::DelayTable::interpolate(double slew, double load,
     
     // Convert back to picoseconds
     return interpolatedValue * 1000.0;
-} 
-
+}
 
 double Library::getDelay(const std::string& gateType, double inputSlew, double loadCap, int numInputs) const {
     // Find the gate in the library
