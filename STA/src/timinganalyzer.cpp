@@ -193,27 +193,33 @@ void StaticTimingAnalyzer::calculateLoadCapacitance() {
         }
     }
     
-    // Special case for primary outputs - set to 4 times inverter capacitance
-    for (size_t outputId : circuit_.getPrimaryOutputs()) {
-        Circuit::Node& outputNode = const_cast<Circuit::Node&>(circuit_.getNode(outputId));
-        
-        // If this is a primary output with no fanouts, set its load
-        if (outputNode.fanouts.empty()) {
+        // Special case for primary outputs - set to 4 times inverter capacitance
+        for (size_t outputId : circuit_.getPrimaryOutputs()) {
+            Circuit::Node& outputNode = const_cast<Circuit::Node&>(circuit_.getNode(outputId));
+            
+            // Apply 4× inverter capacitance to ALL primary outputs (remove the conditional)
             outputNode.loadCapacitance = 4.0 * library_.getInverterCapacitance();
+            
+            // Then add capacitance from any fanouts (if they exist)
+            for (size_t fanoutId : outputNode.fanouts) {
+                const Circuit::Node& fanoutNode = circuit_.getNode(fanoutId);
+                if (fanoutNode.type != "INPUT" && fanoutNode.type != "OUTPUT") {
+                    outputNode.loadCapacitance += library_.getGateCapacitance(fanoutNode.type);
+                }
+            }
         }
-    }
+
 }
 
 
 void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
-    std::cout << "Processing node " << nodeId << " (type: " 
-              << circuit_.getNode(nodeId).type << ")" << std::endl;
+    // Remove or comment out: std::cout << "Processing node " << nodeId << " (type: " << circuit_.getNode(nodeId).type << ")" << std::endl;
               
     Circuit::Node& node = const_cast<Circuit::Node&>(circuit_.getNode(nodeId));
     
     // Skip primary inputs as they have their arrival times and slews preset
     if (node.type == "INPUT") {
-        std::cout << "  Skipping INPUT node" << std::endl;
+        // Remove or comment out: std::cout << "  Skipping INPUT node" << std::endl;
         return;
     }
     
@@ -223,17 +229,17 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
     
     // No fanins means this is probably a primary input or special node
     if (node.fanins.empty()) {
-        std::cout << "  Node has no fanins, treating as special node" << std::endl;
+        // Remove or comment out: std::cout << "  Node has no fanins, treating as special node" << std::endl;
         node.arrivalTime = 0.0;
         node.outputSlew = 2.0; // Default input slew
         return;
     }
     
-    std::cout << "  Processing " << node.fanins.size() << " fanins" << std::endl;
+    // Remove or comment out: std::cout << "  Processing " << node.fanins.size() << " fanins" << std::endl;
     
     // Process each fanin to find the latest arrival time
     for (size_t faninId : node.fanins) {
-        std::cout << "  Processing fanin " << faninId << std::endl;
+        // Remove or comment out: std::cout << "  Processing fanin " << faninId << std::endl;
         const Circuit::Node& faninNode = circuit_.getNode(faninId);
         
         // For OUTPUT nodes, take the maximum arrival time from fanins
@@ -246,9 +252,7 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
         }
         
         // Calculate delay from this fanin to current node
-        std::cout << "  Calculating delay for gate type " << node.type 
-                  << " with input slew " << faninNode.outputSlew 
-                  << " and load cap " << node.loadCapacitance << std::endl;
+        // Remove or comment out: std::cout << "  Calculating delay for gate type " << node.type << " with input slew " << faninNode.outputSlew << " and load cap " << node.loadCapacitance << std::endl;
                   
         double delay = library_.getDelay(
             node.type, 
@@ -258,7 +262,7 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
         );
         
         // Calculate output slew
-        std::cout << "  Calculating output slew" << std::endl;
+        // Remove or comment out: std::cout << "  Calculating output slew" << std::endl;
         double thisOutputSlew = library_.getOutputSlew(
             node.type,
             faninNode.outputSlew,
@@ -268,9 +272,7 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
         
         // Calculate arrival time from this fanin
         double arrivalTime = faninNode.arrivalTime + delay;
-        std::cout << "  Arrival time contribution: " << arrivalTime 
-                  << " (fanin arrival: " << faninNode.arrivalTime 
-                  << " + delay: " << delay << ")" << std::endl;
+        // Remove or comment out: std::cout << "  Arrival time contribution: " << arrivalTime << " (fanin arrival: " << faninNode.arrivalTime << " + delay: " << delay << ")" << std::endl;
         
         // Keep track of maximum arrival time and corresponding slew
         if (arrivalTime > maxArrivalTime) {
@@ -280,12 +282,10 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
     }
     
     // Set node's arrival time and output slew
-    std::cout << "  Setting arrival time to " << maxArrivalTime 
-              << " and output slew to " << outputSlew << std::endl;
+    // Remove or comment out: std::cout << "  Setting arrival time to " << maxArrivalTime << " and output slew to " << outputSlew << std::endl;
     node.arrivalTime = maxArrivalTime;
     node.outputSlew = outputSlew;
 }
-
 
 void StaticTimingAnalyzer::forwardTraversal() {
     // Process each node in topological order
