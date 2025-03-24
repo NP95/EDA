@@ -62,10 +62,14 @@ bool LibertyParser::parse() {
                 
                 double cap = std::stod(valueStr);
                 
+                // Store capacitance for the current gate
+                library_.gateTables_[currentCell].capacitance = cap;
+                
                 if (currentCell == "INV" || currentCell == "NOT") {
                     library_.inverterCapacitance_ = cap;
                     std::cout << "Set inverter capacitance to " << cap << std::endl;
                 }
+                cap = false;
             }
         }
         // Handle index_1 (input slews)
