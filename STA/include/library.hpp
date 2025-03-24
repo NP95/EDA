@@ -13,6 +13,7 @@ public:
         std::vector<double> loadCaps;
         std::vector<std::vector<double>> delayValues;
         std::vector<std::vector<double>> slewValues;
+        double capacitance;
 
         double interpolateDelay(double slew, double load) const;
         double interpolateSlew(double slew, double load) const;
@@ -31,6 +32,7 @@ public:
     
     double getDelay(const std::string& gateType, double inputSlew, double loadCap, int numInputs = 2) const;
     double getOutputSlew(const std::string& gateType, double inputSlew, double loadCap, int numInputs = 2) const;
+    double getGateCapacitance(const std::string& gateType) const;
     double getInverterCapacitance() const { return inverterCapacitance_; }
     
     // For debugging

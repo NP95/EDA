@@ -64,12 +64,17 @@ double Library::DelayTable::interpolate(double slew, double load,
     double C2 = loadCaps[j2];
     
     // Apply the 2D interpolation formula from the assignment
-    return (v11*(C2-load)*(t2-slew) + 
-            v12*(load-C1)*(t2-slew) + 
-            v21*(C2-load)*(slew-t1) + 
-            v22*(load-C1)*(slew-t1)) / 
-           ((C2-C1)*(t2-t1));
-}
+    double slew_ns = slew / 1000.0;
+
+    // Apply the 2D interpolation formula using slew in ns
+    double result = (v11*(C2-load)*(t2-slew_ns) + 
+                    v12*(load-C1)*(t2-slew_ns) + 
+                    v21*(C2-load)*(slew_ns-t1) + 
+                    v22*(load-C1)*(slew_ns-t1)) / 
+                   ((C2-C1)*(t2-t1));
+    
+    // Convert result back to ps for circuit analysis
+    return result * 1000.0;}
 
 double Library::getDelay(const std::string& gateType, double inputSlew, double loadCap, int numInputs) const {
     // Find the gate in the library

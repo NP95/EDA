@@ -268,6 +268,7 @@ bool LibertyParser::parse() {
 }
 
 // Helper method to process values lines - more robust version
+// In LibertyParser::processValuesLine()
 void LibertyParser::processValuesLine(const std::string& line, std::vector<std::vector<double>>& tableValues, int& rowCount) {
     // Remove quotes and backslashes
     std::string cleanLine = line;
@@ -291,8 +292,9 @@ void LibertyParser::processValuesLine(const std::string& line, std::vector<std::
         }
         
         try {
-            // Convert ns to ps
-            double value = std::stod(token) * 1000.0;
+            // IMPORTANT: Keep values in original units (ns)
+            // Remove the *1000.0 conversion here
+            double value = std::stod(token);
             row.push_back(value);
         } catch (const std::exception& e) {
             std::cerr << "Warning: Failed to parse value: " << token << std::endl;
