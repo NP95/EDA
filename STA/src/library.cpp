@@ -21,22 +21,34 @@ double Library::DelayTable::interpolateSlew(double slew, double load) const {
 
 double Library::DelayTable::interpolate(double slew, double load, 
     const std::vector<std::vector<double>>& table) const {
-    // Convert input slew from ps to ns for lookup table (important!)
+    // Convert input slew from ps to ns for lookup table
     double slew_ns = slew / 1000.0;
     
-    // Use upper_bound to find indices exactly like the reference
-    auto slewIt = std::upper_bound(inputSlews.begin(), inputSlews.end(), slew_ns);
-    size_t i2 = std::distance(inputSlews.begin(), slewIt);
-    size_t i1 = std::max<size_t>(0, i2 - 1);
-    i2 = std::min<size_t>(inputSlews.size() - 1, i2);
+    // Find bounding indices for slew using clamping approach
+    size_t i1 = 0, i2 = 0;
+    if (slew_ns <= inputSlews.front()) {
+        i1 = i2 = 0;
+    } else if (slew_ns >= inputSlews.back()) {
+        i1 = i2 = inputSlews.size() - 1;
+    } else {
+        auto it = std::upper_bound(inputSlews.begin(), inputSlews.end(), slew_ns);
+        i2 = std::distance(inputSlews.begin(), it);
+        i1 = i2 - 1;
+    }
     
-    // Use upper_bound to find indices for load capacitance
-    auto loadIt = std::upper_bound(loadCaps.begin(), loadCaps.end(), load);
-    size_t j2 = std::distance(loadCaps.begin(), loadIt);
-    size_t j1 = std::max<size_t>(0, j2 - 1);
-    j2 = std::min<size_t>(loadCaps.size() - 1, j2);
+    // Find bounding indices for load capacitance
+    size_t j1 = 0, j2 = 0;
+    if (load <= loadCaps.front()) {
+        j1 = j2 = 0;
+    } else if (load >= loadCaps.back()) {
+        j1 = j2 = loadCaps.size() - 1;
+    } else {
+        auto it = std::upper_bound(loadCaps.begin(), loadCaps.end(), load);
+        j2 = std::distance(loadCaps.begin(), it);
+        j1 = j2 - 1;
+    }
     
-    // Get table values 
+    // Get table values at the corners
     double v11 = table[i1][j1];
     double v12 = table[i1][j2];
     double v21 = table[i2][j1];
@@ -48,7 +60,20 @@ double Library::DelayTable::interpolate(double slew, double load,
     double c1 = loadCaps[j1];
     double c2 = loadCaps[j2];
     
-    // Match the reference implementation's formula exactly
+    // Handle cases where indices are the same (clamped to boundary)
+    if (i1 == i2 && j1 == j2) {
+        return v11 * 1000.0; // Convert back to ps
+    } else if (i1 == i2) {
+        // Linear interpolation on load dimension only
+        if (c1 == c2) return v11 * 1000.0;
+        return ((c2 - load) * v11 + (load - c1) * v12) / (c2 - c1) * 1000.0;
+    } else if (j1 == j2) {
+        // Linear interpolation on slew dimension only
+        if (t1 == t2) return v11 * 1000.0;
+        return ((t2 - slew_ns) * v11 + (slew_ns - t1) * v21) / (t2 - t1) * 1000.0;
+    }
+    
+    // Full bilinear interpolation - IMPORTANT: use unclamped values in formula
     double interpolatedValue = 
         (v11 * (c2 - load) * (t2 - slew_ns) +
          v12 * (load - c1) * (t2 - slew_ns) +
@@ -56,16 +81,9 @@ double Library::DelayTable::interpolate(double slew, double load,
          v22 * (load - c1) * (slew_ns - t1)) /
         ((c2 - c1) * (t2 - t1));
     
-    // Prevent division by zero
-    if (std::abs(c2 - c1) < 1e-9 || std::abs(t2 - t1) < 1e-9) {
-        // Just return v11 as a fallback in case of too-close indices
-        interpolatedValue = v11;
-    }
-    
     // Convert back to picoseconds
     return interpolatedValue * 1000.0;
 }
-
 double Library::getDelay(const std::string& gateType, double inputSlew, double loadCap, int numInputs) const {
     // Find the gate in the library
     auto it = gateTables_.find(gateType);
