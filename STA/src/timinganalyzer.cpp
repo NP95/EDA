@@ -178,11 +178,9 @@ void StaticTimingAnalyzer::calculateLoadCapacitance() {
         }
         
         // Get input capacitance for this gate type
-        double inputCapacitance = 0.0;
+        double inputCapacitance;
         try {
-            // This is a simplification - we would need to extend the library class 
-            // to provide input capacitance for each gate type
-            inputCapacitance = library_.getInverterCapacitance();
+            inputCapacitance = library_.getGateCapacitance(node.type);
         } catch (const std::exception& e) {
             std::cerr << "Warning: Could not get input capacitance for " << node.type << std::endl;
             continue;
@@ -205,6 +203,7 @@ void StaticTimingAnalyzer::calculateLoadCapacitance() {
         }
     }
 }
+
 
 void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
     std::cout << "Processing node " << nodeId << " (type: " 
@@ -393,7 +392,7 @@ void StaticTimingAnalyzer::identifyCriticalPath() {
     
     for (size_t outputId : circuit_.getPrimaryOutputs()) {
         const Circuit::Node& outputNode = circuit_.getNode(outputId);
-        if (outputNode.slack < minSlack) {
+        if (outputNode.slack <= minSlack) {
             minSlack = outputNode.slack;
             currentNode = outputId;
         }

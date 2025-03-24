@@ -85,7 +85,7 @@ bool LibertyParser::parse() {
                     value.erase(value.find_last_not_of(" \t") + 1);
                     if (!value.empty()) {
                         // Convert ns to ps
-                        double slew = std::stod(value) * 1000.0;
+                        double slew = std::stod(value) ;
                         inputSlews.push_back(slew);
                     }
                 }
