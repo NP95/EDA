@@ -4,7 +4,7 @@
 #include <chrono>
 #include <memory>
 #include <iomanip>
-#include <cmath> // Add this for std::isinf
+#include <cmath> // For std::isinf
 #include "circuit.hpp"
 #include "library.hpp"
 #include "netlistparser.hpp"
@@ -18,7 +18,8 @@ public:
     
     // Expose protected methods
     void testComputeTopologicalOrder() { computeTopologicalOrder(); }
-    void testCalculateLoadCapacitance() { calculateLoadCapacitance(); }
+    // Remove the call to calculateLoadCapacitance since we're now doing this on-the-fly
+    void testCalculateLoadCapacitance() { /* No-op - now calculated on-the-fly */ }
     void testForwardTraversal() { forwardTraversal(); }
     void testBackwardTraversal() { backwardTraversal(); }
     void testIdentifyCriticalPath() { identifyCriticalPath(); }
@@ -81,9 +82,19 @@ void printSlackInfo(const Circuit& circuit) {
     std::cout << "Primary Outputs:\n";
     for (size_t outputId : circuit.getPrimaryOutputs()) {
         const auto& node = circuit.getNode(outputId);
+        std::string requiredTimeStr;
+        
+        if (std::isinf(node.requiredTime)) {
+            requiredTimeStr = "infinity";
+        } else {
+            std::ostringstream oss;
+            oss << std::fixed << std::setprecision(2) << node.requiredTime;
+            requiredTimeStr = oss.str();
+        }
+        
         std::cout << "  OUTPUT-n" << node.name 
                   << ": Arrival=" << std::fixed << std::setprecision(2) << node.arrivalTime 
-                  << " ps, Required=" << node.requiredTime 
+                  << " ps, Required=" << requiredTimeStr 
                   << " ps, Slack=" << node.slack << " ps\n";
     }
     
@@ -110,7 +121,7 @@ void printSlackInfo(const Circuit& circuit) {
 }
 
 void printUsage(const char* programName) {
-    std::cout << "Usage: " << programName << " <circuit_file> <liberty_file>\n";
+    std::cout << "Usage: " << programName << " <liberty_file> <circuit_file>\n";
 }
 
 int main(int argc, char* argv[]) {
@@ -120,8 +131,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    std::string circuitFile = argv[1];
-    std::string libertyFile = argv[2];
+    std::string libertyFile = argv[1];
+    std::string circuitFile = argv[2];
     
     // Create circuit and library objects
     Circuit circuit;
@@ -162,48 +173,21 @@ int main(int argc, char* argv[]) {
     // Print statistics about the parsed data
     printCircuitStats(circuit);
     
-    // Create the testable timing analyzer (using sequential mode)
+    // Create the timing analyzer (using parallel mode for better performance)
     std::cout << "\nCreating timing analyzer...\n";
-    TestableTimingAnalyzer analyzer(circuit, library, false); // Use sequential mode
+    StaticTimingAnalyzer analyzer(circuit, library, true); // Use parallel mode for performance
     
-    // Step-by-step testing of STA functionality
-    std::cout << "\n====== Testing STA Functionality ======\n";
+    // Run the complete analysis
+    std::cout << "Running static timing analysis...\n";
+    auto startAnalysis = std::chrono::high_resolution_clock::now();
+    analyzer.run();
+    auto endAnalysis = std::chrono::high_resolution_clock::now();
+    auto analysisDuration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        endAnalysis - startAnalysis).count();
     
-    // 1. Initialize
-    std::cout << "Initializing analyzer...\n";
-    analyzer.initialize();
-    
-    // 2. Compute topological order
-    std::cout << "Computing topological order...\n";
-    analyzer.testComputeTopologicalOrder();
-    
-    // 3. Calculate load capacitance
-    std::cout << "Calculating load capacitances...\n";
-    analyzer.testCalculateLoadCapacitance();
-    
-    // 4. Perform forward traversal
-    std::cout << "Performing forward traversal...\n";
-    auto startForward = std::chrono::high_resolution_clock::now();
-    analyzer.testForwardTraversal();
-    auto endForward = std::chrono::high_resolution_clock::now();
-    auto forwardDuration = std::chrono::duration_cast<std::chrono::milliseconds>(
-        endForward - startForward).count();
-    std::cout << "Forward traversal completed in " << forwardDuration << " ms\n";
+    std::cout << "Analysis completed in " << analysisDuration << " ms\n";
     std::cout << "Circuit delay: " << std::fixed << std::setprecision(2) 
               << analyzer.getCircuitDelay() << " ps\n";
-    
-    // 5. Perform backward traversal
-    std::cout << "Performing backward traversal...\n";
-    auto startBackward = std::chrono::high_resolution_clock::now();
-    analyzer.testBackwardTraversal();
-    auto endBackward = std::chrono::high_resolution_clock::now();
-    auto backwardDuration = std::chrono::duration_cast<std::chrono::milliseconds>(
-        endBackward - startBackward).count();
-    std::cout << "Backward traversal completed in " << backwardDuration << " ms\n";
-    
-    // 6. Identify critical path
-    std::cout << "Identifying critical path...\n";
-    analyzer.testIdentifyCriticalPath();
     
     // Print results
     printSlackInfo(circuit);
@@ -214,5 +198,5 @@ int main(int argc, char* argv[]) {
     analyzer.writeResults("ckt_traversal.txt");
     
     std::cout << "\nSTA completed successfully!\n";
-    return 0;
+    return 0;  // Fixed return code for successful completion
 }

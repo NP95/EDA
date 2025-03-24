@@ -84,60 +84,54 @@ double Library::DelayTable::interpolate(double slew, double load,
     // Convert back to picoseconds
     return interpolatedValue * 1000.0;
 }
+
 double Library::getDelay(const std::string& gateType, double inputSlew, double loadCap, int numInputs) const {
     // Find the gate in the library
     auto it = gateTables_.find(gateType);
     if (it == gateTables_.end()) {
+        // For special types, return 0 delay without warning
+        if (gateType == "INPUT" || gateType == "OUTPUT") {
+            return 0.0;
+        }
         std::cerr << "Warning: Gate type " << gateType << " not found in library" << std::endl;
-        return 0.0;
-    }
-    
-    // Check if the delay table is properly initialized
-    const DelayTable& table = it->second;
-    if (table.inputSlews.empty() || table.loadCaps.empty() || table.delayValues.empty()) {
-        std::cerr << "Warning: Delay table for " << gateType << " is not properly initialized" << std::endl;
         return 0.0;
     }
     
     // Get the delay value
     double delay = it->second.interpolateDelay(inputSlew, loadCap);
     
-    // Multiply by (n/2) for gates with more than 2 inputs
-    if (numInputs > 2) {
-        delay *= (static_cast<double>(numInputs) / 2.0);
-    }
     
     return delay;
 }
-
 
 double Library::getOutputSlew(const std::string& gateType, double inputSlew, double loadCap, int numInputs) const {
     // Find the gate in the library
     auto it = gateTables_.find(gateType);
     if (it == gateTables_.end()) {
+        // For special types, return input slew without warning
+        if (gateType == "INPUT" || gateType == "OUTPUT") {
+            return inputSlew;
+        }
         std::cerr << "Warning: Gate type " << gateType << " not found in library" << std::endl;
-        return 0.0;
-    }
-    
-    // Check if the slew table is properly initialized
-    const DelayTable& table = it->second;
-    if (table.inputSlews.empty() || table.loadCaps.empty() || table.slewValues.empty()) {
-        std::cerr << "Warning: Slew table for " << gateType << " is not properly initialized" << std::endl;
-        return 0.0;
+        return inputSlew;
     }
     
     // Get the slew value
     double slew = it->second.interpolateSlew(inputSlew, loadCap);
     
-    // Multiply by (n/2) for gates with more than 2 inputs
-    if (numInputs > 2) {
-        slew *= (static_cast<double>(numInputs) / 2.0);
-    }
-    
     return slew;
 }
 
 double Library::getGateCapacitance(const std::string& gateType) const {
+    // Special handling for INPUT and OUTPUT nodes
+    if (gateType == "INPUT") {
+        return 0.0; // Input nodes have no input capacitance
+    }
+    
+    if (gateType == "OUTPUT") {
+        return inverterCapacitance_; // Use inverter capacitance for outputs
+    }
+    
     // Find the gate in the library
     auto it = gateTables_.find(gateType);
     if (it != gateTables_.end()) {

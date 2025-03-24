@@ -7,7 +7,6 @@
 #include <iomanip>
 #include <cmath>
 
-
 // ThreadingStrategy Implementations
 void SequentialThreadingStrategy::processNodesInParallel(
     const std::vector<size_t>& nodeIds,
@@ -92,10 +91,10 @@ void StaticTimingAnalyzer::initialize() {
         node.loadCapacitance = 0.0;
     }
     
-    // Set default input slew for primary inputs (2 ps as specified)
+    // Set default input slew for primary inputs (2 ps as specified in requirements)
     for (size_t inputId : circuit_.getPrimaryInputs()) {
         Circuit::Node& node = const_cast<Circuit::Node&>(circuit_.getNode(inputId));
-        node.outputSlew = 2.0; // 2 ps as specified in requirements
+        node.outputSlew = 2.0; 
     }
 }
 
@@ -162,11 +161,6 @@ void StaticTimingAnalyzer::computeTopologicalOrder() {
     }
 }
 
-void StaticTimingAnalyzer::calculateLoadCapacitance() {
-    // This method is kept for reference but not used in final implementation
-    // since load capacitance is calculated on-the-fly during traversal
-}
-
 void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
     Circuit::Node& node = const_cast<Circuit::Node&>(circuit_.getNode(nodeId));
     
@@ -191,16 +185,14 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
     
     // Special case for primary outputs with no fanouts
     if (node.type == "OUTPUT" && node.fanouts.empty()) {
-        // Per assignment spec: 4x inverter capacitance for primary outputs
         loadCap = 4.0 * library_.getInverterCapacitance();
     } else if (node.fanouts.empty()) {
-        // Per instructor clarification: 0 load capacitance for dead nodes
-        loadCap = 0.0;
+        loadCap = 0.0; // Dead nodes have 0 load capacitance
     } else {
         // Add input capacitance from each fanout gate
         for (size_t fanoutId : node.fanouts) {
             const Circuit::Node& fanoutNode = circuit_.getNode(fanoutId);
-            // Add capacitance for all fanout types - no filtering
+            // Add capacitance for ALL fanout types - no filtering
             loadCap += library_.getGateCapacitance(fanoutNode.type);
         }
     }
@@ -287,7 +279,7 @@ void StaticTimingAnalyzer::processNodeBackward(size_t nodeId) {
     }
     
     // For nodes with no fanouts that aren't primary outputs
-    // Set required time to positive infinity per instructor clarification
+    // Set required time to infinity per instructor clarification
     if (node.fanouts.empty()) {
         node.requiredTime = std::numeric_limits<double>::infinity();
         node.slack = node.requiredTime - node.arrivalTime;
@@ -320,7 +312,7 @@ void StaticTimingAnalyzer::processNodeBackward(size_t nodeId) {
             // Add input capacitance from each fanout's fanout
             for (size_t nextFanoutId : fanoutNode.fanouts) {
                 const Circuit::Node& nextFanoutNode = circuit_.getNode(nextFanoutId);
-                // Add capacitance for all fanout types - no filtering
+                // Add capacitance for ALL fanout types - no filtering
                 loadCap += library_.getGateCapacitance(nextFanoutNode.type);
             }
         }
@@ -342,16 +334,17 @@ void StaticTimingAnalyzer::processNodeBackward(size_t nodeId) {
             delay *= (static_cast<double>(fanoutNode.numInputs) / 2.0);
         }
         
-        // Calculate required time based on this fanout (r7 = r9 - d7)
+        // Calculate required time based on this fanout (r_this = r_fanout - delay)
         double reqTime = fanoutNode.requiredTime - delay;
         
         // Keep the earliest required time (min function)
         minRequiredTime = std::min(minRequiredTime, reqTime);
     }
     
-    // If we couldn't determine a finite required time, use the circuit constraint
+    // If we couldn't determine a finite required time, use infinity
+    // This ensures proper slack calculation for nodes not on any path to outputs
     if (std::isinf(minRequiredTime)) {
-        minRequiredTime = 1.1 * circuitDelay_;
+        minRequiredTime = std::numeric_limits<double>::infinity();
     }
     
     node.requiredTime = minRequiredTime;
@@ -388,8 +381,7 @@ void StaticTimingAnalyzer::identifyCriticalPath() {
         const Circuit::Node& outputNode = circuit_.getNode(outputId);
         
         // When slacks are equal, prefer node 7 over node 6 to match reference
-        if (outputNode.slack < minSlack || 
-            (outputNode.slack == minSlack && outputNode.name == "7")) {
+        if (outputNode.slack < minSlack ) {
             minSlack = outputNode.slack;
             currentNode = outputId;
         }
@@ -429,7 +421,7 @@ void StaticTimingAnalyzer::identifyCriticalPath() {
             } else {
                 for (size_t fanoutId : node.fanouts) {
                     const Circuit::Node& fanoutNode = circuit_.getNode(fanoutId);
-                    // Add capacitance for all fanout types - no filtering
+                    // Add capacitance for ALL fanout types - no filtering
                     loadCap += library_.getGateCapacitance(fanoutNode.type);
                 }
             }

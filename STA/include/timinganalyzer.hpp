@@ -83,7 +83,6 @@ protected:
     // Move these from private to protected
     std::vector<size_t> topoOrder_;
     void computeTopologicalOrder();
-    void calculateLoadCapacitance();
     void forwardTraversal();
     void backwardTraversal();
     void identifyCriticalPath();
