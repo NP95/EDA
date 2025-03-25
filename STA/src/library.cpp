@@ -20,10 +20,6 @@ double Library::DelayTable::interpolate(double slew, double load,
     // Convert input slew from ps to ns for lookup table
     double slew_ns = slew / 1000.0;
     
-    // Store original (unclamped) values for use in the interpolation formula
-    double original_slew_ns = slew_ns;
-    double original_load = load;
-    
     // Find bounding indices for slew using clamping approach
     // CLAMP ONLY FOR FINDING INDICES per instructor guidance
     size_t i1 = 0, i2 = 0;
@@ -67,23 +63,21 @@ double Library::DelayTable::interpolate(double slew, double load,
         return v11 * 1000.0; // Convert back to ps
     } else if (i1 == i2) {
         // Linear interpolation on load dimension only
-        // IMPORTANT: Use UNCLAMPED load per instructor guidance
         if (c1 == c2) return v11 * 1000.0;
-        return ((c2 - original_load) * v11 + (original_load - c1) * v12) / (c2 - c1) * 1000.0;
+        return ((c2 - load) * v11 + (load - c1) * v12) / (c2 - c1) * 1000.0;
     } else if (j1 == j2) {
         // Linear interpolation on slew dimension only
-        // IMPORTANT: Use UNCLAMPED slew_ns per instructor guidance
         if (t1 == t2) return v11 * 1000.0;
-        return ((t2 - original_slew_ns) * v11 + (original_slew_ns - t1) * v21) / (t2 - t1) * 1000.0;
+        return ((t2 - slew_ns) * v11 + (slew_ns - t1) * v21) / (t2 - t1) * 1000.0;
     }
     
-    // Full bilinear interpolation - IMPORTANT: use UNCLAMPED values in formula
-    // This is a critical fix based on instructor guidance
+    // Fixed full bilinear interpolation - use consistent variable names
+    // and ensure all values in the formula are in the same units
     double interpolatedValue = 
-        (v11 * (c2 - original_load) * (t2 - original_slew_ns) +
-         v12 * (original_load - c1) * (t2 - original_slew_ns) +
-         v21 * (c2 - original_load) * (original_slew_ns - t1) +
-         v22 * (original_load - c1) * (original_slew_ns - t1)) /
+        (v11 * (c2 - load) * (t2 - slew_ns) +
+         v12 * (load - c1) * (t2 - slew_ns) +
+         v21 * (c2 - load) * (slew_ns - t1) +
+         v22 * (load - c1) * (slew_ns - t1)) /
         ((c2 - c1) * (t2 - t1));
     
     // Convert back to picoseconds
