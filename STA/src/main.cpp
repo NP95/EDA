@@ -10,6 +10,7 @@
 #include "netlistparser.hpp"
 #include "libertyparser.hpp"
 #include "timinganalyzer.hpp"
+#include "debug.hpp" 
 
 // Test subclass that gives access to protected members
 class TestableTimingAnalyzer : public StaticTimingAnalyzer {
@@ -124,6 +125,8 @@ void printUsage(const char* programName) {
     std::cout << "Usage: " << programName << " <liberty_file> <circuit_file>\n";
 }
 
+// In src/main.cpp, modify the main function:
+
 int main(int argc, char* argv[]) {
     if (argc != 3) {
         std::cerr << "Error: Incorrect number of arguments\n";
@@ -133,6 +136,11 @@ int main(int argc, char* argv[]) {
     
     std::string libertyFile = argv[1];
     std::string circuitFile = argv[2];
+    
+    // Initialize debug system
+    Debug::initialize(Debug::TRACE, "sta_debug.log");
+    Debug::setCircuitName(circuitFile);
+    Debug::info("Starting STA for circuit: " + circuitFile);
     
     // Create circuit and library objects
     Circuit circuit;
@@ -149,18 +157,22 @@ int main(int argc, char* argv[]) {
     LibertyParser libParser(libertyFile, library);
     if (!libParser.parse()) {
         std::cerr << "Error parsing liberty file: " << libertyFile << "\n";
+        Debug::error("Failed to parse liberty file: " + libertyFile);
+        Debug::cleanup();
         return 1;
     }
 
     std::cout << "Verifying library contents:" << std::endl;
     library.printAvailableGates();
-
+    Debug::dumpLibraryTables(library);
     
     // Parse circuit file
     std::cout << "Parsing circuit file: " << circuitFile << "\n";
     NetlistParser netlistParser(circuitFile, circuit);
     if (!netlistParser.parse()) {
         std::cerr << "Error parsing circuit file: " << circuitFile << "\n";
+        Debug::error("Failed to parse circuit file: " + circuitFile);
+        Debug::cleanup();
         return 1;
     }
     
@@ -172,10 +184,11 @@ int main(int argc, char* argv[]) {
     
     // Print statistics about the parsed data
     printCircuitStats(circuit);
+    Debug::dumpCircuitState(circuit, "After Parsing");
     
-    // Create the timing analyzer (using parallel mode for better performance)
+    // Create the timing analyzer - use sequential mode for debugging
     std::cout << "\nCreating timing analyzer...\n";
-    StaticTimingAnalyzer analyzer(circuit, library, true); // Use parallel mode for performance
+    StaticTimingAnalyzer analyzer(circuit, library, false); // Use sequential mode for debugging
     
     // Run the complete analysis
     std::cout << "Running static timing analysis...\n";
@@ -189,6 +202,9 @@ int main(int argc, char* argv[]) {
     std::cout << "Circuit delay: " << std::fixed << std::setprecision(2) 
               << analyzer.getCircuitDelay() << " ps\n";
     
+    Debug::dumpCircuitState(circuit, "After Analysis");
+    
+    
     // Print results
     printSlackInfo(circuit);
     printCriticalPath(circuit, analyzer.getCriticalPath());
@@ -198,5 +214,7 @@ int main(int argc, char* argv[]) {
     analyzer.writeResults("ckt_traversal.txt");
     
     std::cout << "\nSTA completed successfully!\n";
-    return 0;  // Fixed return code for successful completion
+    Debug::info("STA completed successfully");
+    Debug::cleanup();
+    return 0;
 }

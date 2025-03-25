@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iomanip>
 #include <cmath>
+#include "debug.hpp" 
 
 // ThreadingStrategy Implementations
 void SequentialThreadingStrategy::processNodesInParallel(
@@ -161,11 +162,16 @@ void StaticTimingAnalyzer::computeTopologicalOrder() {
     }
 }
 
+// In src/timinganalyzer.cpp, modify the processNodeForward method:
+
 void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
+    Debug::trace("Processing node forward: " + circuit_.getNode(nodeId).name);
+    
     Circuit::Node& node = const_cast<Circuit::Node&>(circuit_.getNode(nodeId));
     
     // Skip processing for input nodes - they have predetermined values
     if (node.type == "INPUT") {
+        Debug::trace("Skipping INPUT node: " + node.name);
         return;
     }
     
@@ -177,6 +183,7 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
     if (node.fanins.empty()) {
         node.arrivalTime = 0.0;
         node.outputSlew = 2.0; // Default input slew for special nodes
+        Debug::trace("Node " + node.name + " has no fanins, setting default values");
         return;
     }
     
@@ -186,27 +193,45 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
     // Special case for primary outputs with no fanouts
     if (node.type == "OUTPUT" && node.fanouts.empty()) {
         loadCap = 4.0 * library_.getInverterCapacitance();
+        Debug::detail("Output node " + node.name + " loadCap = 4.0 * " + 
+                     std::to_string(library_.getInverterCapacitance()) + " = " + 
+                     std::to_string(loadCap) + " fF");
     } else if (node.fanouts.empty()) {
         // Dead nodes have 0 load capacitance per instructor clarification
         loadCap = 0.0;
+        Debug::detail("Dead node " + node.name + " loadCap = 0.0 fF");
     } else {
         // Add input capacitance from each fanout gate
+        Debug::detail("Calculating load capacitance for node " + node.name);
         for (size_t fanoutId : node.fanouts) {
             const Circuit::Node& fanoutNode = circuit_.getNode(fanoutId);
-            // Add capacitance for ALL fanout types - no filtering
-            loadCap += library_.getGateCapacitance(fanoutNode.type);
+            double fanoutCap = library_.getGateCapacitance(fanoutNode.type);
+            Debug::trace("  Fanout " + fanoutNode.name + " (" + fanoutNode.type + ") has capacitance: " + 
+                        std::to_string(fanoutCap) + " fF");
+            loadCap += fanoutCap;
         }
+        Debug::detail("Total load capacitance for node " + node.name + ": " + 
+                     std::to_string(loadCap) + " fF");
     }
     
+    // Save calculated load capacitance
+    node.loadCapacitance = loadCap;
+    
     // Process each fanin to find the latest arrival time
+    Debug::detail("Processing fanins for node " + node.name + " (" + node.type + ")");
     for (size_t faninId : node.fanins) {
         const Circuit::Node& faninNode = circuit_.getNode(faninId);
+        Debug::trace("  Processing fanin " + faninNode.name + " with arrival time " + 
+                    std::to_string(faninNode.arrivalTime) + " ps and output slew " + 
+                    std::to_string(faninNode.outputSlew) + " ps");
         
         // Special handling for OUTPUT nodes
         if (node.type == "OUTPUT") {
             if (faninNode.arrivalTime > maxArrivalTime) {
                 maxArrivalTime = faninNode.arrivalTime;
                 outputSlew = faninNode.outputSlew;
+                Debug::trace("  OUTPUT node: updated maxArrivalTime to " + std::to_string(maxArrivalTime) + 
+                            " ps and outputSlew to " + std::to_string(outputSlew) + " ps");
             }
             continue;
         }
@@ -230,28 +255,60 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
             node.numInputs
         );
         
+        Debug::trace("  Raw delay from " + node.type + " gate: " + std::to_string(delay) + 
+                    " ps, raw output slew: " + std::to_string(thisOutputSlew) + " ps");
+        
         // Apply n/2 scaling only if not a 1-input gate and numInputs > 2
         // This logic is correct per instructor clarification
+        double scaleFactor = 1.0;
         if (!is1InputGate && node.numInputs > 2) {
-            delay *= (static_cast<double>(node.numInputs) / 2.0);
-            thisOutputSlew *= (static_cast<double>(node.numInputs) / 2.0);
+            scaleFactor = static_cast<double>(node.numInputs) / 2.0;
+            delay *= scaleFactor;
+            thisOutputSlew *= scaleFactor;
+            Debug::trace("  Applied scaling factor " + std::to_string(scaleFactor) + 
+                        " for multi-input gate");
         }
         
+        // Trace gate delay calculations for debugging
+        Debug::traceGateDelay(
+            node.type,
+            faninNode.outputSlew,
+            loadCap,
+            node.numInputs,
+            scaleFactor,
+            delay,
+            "Forward traversal for node " + node.name + " from fanin " + faninNode.name
+        );
+        
         double arrivalTime = faninNode.arrivalTime + delay;
+        Debug::trace("  Arrival time contribution from fanin " + faninNode.name + ": " + 
+                    std::to_string(faninNode.arrivalTime) + " + " + std::to_string(delay) + 
+                    " = " + std::to_string(arrivalTime) + " ps");
+        
         if (arrivalTime > maxArrivalTime) {
             maxArrivalTime = arrivalTime;
             outputSlew = thisOutputSlew;
+            Debug::trace("  Updated maxArrivalTime to " + std::to_string(maxArrivalTime) + 
+                        " ps and outputSlew to " + std::to_string(outputSlew) + " ps");
         }
     }
     
     node.arrivalTime = maxArrivalTime;
     node.outputSlew = outputSlew;
+    Debug::detail("Final values for node " + node.name + ": arrivalTime = " + 
+                 std::to_string(node.arrivalTime) + " ps, outputSlew = " + 
+                 std::to_string(node.outputSlew) + " ps");
     
     // Update circuit delay if this is a primary output
     if (node.type == "OUTPUT" && node.fanouts.empty()) {
-        circuitDelay_ = std::max(circuitDelay_, node.arrivalTime);
+        if (node.arrivalTime > circuitDelay_) {
+            Debug::info("Updated circuit delay to " + std::to_string(node.arrivalTime) + 
+                       " ps from output node " + node.name);
+            circuitDelay_ = node.arrivalTime;
+        }
     }
 }
+
 
 void StaticTimingAnalyzer::forwardTraversal() {
     // Process each node in topological order
@@ -272,11 +329,16 @@ void StaticTimingAnalyzer::forwardTraversal() {
 }
 
 void StaticTimingAnalyzer::processNodeBackward(size_t nodeId) {
+    Debug::trace("Processing node backward: " + circuit_.getNode(nodeId).name);
+    
     Circuit::Node& node = const_cast<Circuit::Node&>(circuit_.getNode(nodeId));
     
     // For primary outputs, required time is already set
     if (node.type == "OUTPUT" && node.fanouts.empty()) {
         node.slack = node.requiredTime - node.arrivalTime;
+        Debug::detail("Primary output node " + node.name + ": requiredTime = " + 
+                     std::to_string(node.requiredTime) + " ps, slack = " + 
+                     std::to_string(node.slack) + " ps");
         return;
     }
     
@@ -285,6 +347,7 @@ void StaticTimingAnalyzer::processNodeBackward(size_t nodeId) {
     if (node.fanouts.empty()) {
         node.requiredTime = std::numeric_limits<double>::infinity();
         node.slack = node.requiredTime - node.arrivalTime;
+        Debug::detail("Dead node " + node.name + ": requiredTime = infinity, slack = infinity");
         return;
     }
     
@@ -292,12 +355,17 @@ void StaticTimingAnalyzer::processNodeBackward(size_t nodeId) {
     double minRequiredTime = std::numeric_limits<double>::infinity();
     
     // Process each fanout to find the earliest required time
+    Debug::detail("Processing fanouts for node " + node.name + " (" + node.type + ")");
     for (size_t fanoutId : node.fanouts) {
         const Circuit::Node& fanoutNode = circuit_.getNode(fanoutId);
+        Debug::trace("  Processing fanout " + fanoutNode.name + " with requiredTime = " + 
+                    std::to_string(fanoutNode.requiredTime) + " ps");
         
         // Special case for OUTPUT nodes (they don't add delay)
         if (fanoutNode.type == "OUTPUT") {
             minRequiredTime = std::min(minRequiredTime, fanoutNode.requiredTime);
+            Debug::trace("  OUTPUT fanout: updated minRequiredTime to " + 
+                        std::to_string(minRequiredTime) + " ps");
             continue;
         }
         
@@ -307,16 +375,24 @@ void StaticTimingAnalyzer::processNodeBackward(size_t nodeId) {
         // Special case for primary outputs
         if (fanoutNode.type == "OUTPUT" && fanoutNode.fanouts.empty()) {
             loadCap = 4.0 * library_.getInverterCapacitance();
+            Debug::trace("  Fanout is primary output: loadCap = " + std::to_string(loadCap) + " fF");
         } else if (fanoutNode.fanouts.empty()) {
             // Dead nodes have 0 load capacitance per instructor clarification
             loadCap = 0.0;
+            Debug::trace("  Fanout is dead node: loadCap = 0.0 fF");
         } else {
             // Add input capacitance from each fanout's fanout
+            Debug::trace("  Calculating load capacitance for fanout " + fanoutNode.name);
             for (size_t nextFanoutId : fanoutNode.fanouts) {
                 const Circuit::Node& nextFanoutNode = circuit_.getNode(nextFanoutId);
-                // Add capacitance for ALL fanout types - no filtering
-                loadCap += library_.getGateCapacitance(nextFanoutNode.type);
+                double nextFanoutCap = library_.getGateCapacitance(nextFanoutNode.type);
+                Debug::trace("    Next fanout " + nextFanoutNode.name + " (" + 
+                            nextFanoutNode.type + ") has capacitance: " + 
+                            std::to_string(nextFanoutCap) + " fF");
+                loadCap += nextFanoutCap;
             }
+            Debug::trace("  Total load capacitance for fanout " + fanoutNode.name + 
+                        ": " + std::to_string(loadCap) + " fF");
         }
         
         // Check if this is a 1-input gate (per instructor clarification)
@@ -331,31 +407,58 @@ void StaticTimingAnalyzer::processNodeBackward(size_t nodeId) {
             fanoutNode.numInputs
         );
         
+        Debug::trace("  Raw delay through fanout " + fanoutNode.name + ": " + 
+                    std::to_string(delay) + " ps");
+        
         // Apply n/2 scaling only if not a 1-input gate and numInputs > 2
-        // This logic is correct per instructor clarification
+        double scaleFactor = 1.0;
         if (!is1InputGate && fanoutNode.numInputs > 2) {
-            delay *= (static_cast<double>(fanoutNode.numInputs) / 2.0);
+            scaleFactor = static_cast<double>(fanoutNode.numInputs) / 2.0;
+            delay *= scaleFactor;
+            Debug::trace("  Applied scaling factor " + std::to_string(scaleFactor) + 
+                        " for multi-input gate");
         }
+        
+        // Trace gate delay calculations for debugging
+        Debug::traceGateDelay(
+            fanoutNode.type,
+            node.outputSlew,
+            loadCap,
+            fanoutNode.numInputs,
+            scaleFactor,
+            delay,
+            "Backward traversal for node " + node.name + " to fanout " + fanoutNode.name
+        );
         
         // Calculate required time based on this fanout (r_this = r_fanout - delay)
         double reqTime = fanoutNode.requiredTime - delay;
+        Debug::trace("  Required time contribution from fanout " + fanoutNode.name + 
+                    ": " + std::to_string(fanoutNode.requiredTime) + " - " + 
+                    std::to_string(delay) + " = " + std::to_string(reqTime) + " ps");
         
         // Keep the earliest required time (min function)
-        minRequiredTime = std::min(minRequiredTime, reqTime);
+        if (reqTime < minRequiredTime) {
+            minRequiredTime = reqTime;
+            Debug::trace("  Updated minRequiredTime to " + std::to_string(minRequiredTime) + " ps");
+        }
     }
     
     // If we couldn't determine a finite required time, use infinity
     // This ensures proper slack calculation for nodes not on any path to outputs
-    // This is correct per the instructor's "Dead Nodes" guidance
     if (std::isinf(minRequiredTime)) {
         minRequiredTime = std::numeric_limits<double>::infinity();
+        Debug::detail("Node " + node.name + " has infinite required time (not on path to outputs)");
     }
     
     node.requiredTime = minRequiredTime;
     
     // Calculate slack
     node.slack = node.requiredTime - node.arrivalTime;
+    Debug::detail("Final values for node " + node.name + ": requiredTime = " + 
+                 std::to_string(node.requiredTime) + " ps, slack = " + 
+                 std::to_string(node.slack) + " ps");
 }
+
 
 void StaticTimingAnalyzer::backwardTraversal() {
     // Set required arrival time at primary outputs to 1.1 * circuit delay
@@ -375,36 +478,49 @@ void StaticTimingAnalyzer::backwardTraversal() {
 }
 
 void StaticTimingAnalyzer::identifyCriticalPath() {
+    Debug::info("Identifying critical path");
     criticalPath_.clear();
     
     // Find primary output with minimum slack
     size_t currentNode = SIZE_MAX;
     double minSlack = std::numeric_limits<double>::infinity();
     
+    Debug::detail("Finding primary output with minimum slack");
     for (size_t outputId : circuit_.getPrimaryOutputs()) {
         const Circuit::Node& outputNode = circuit_.getNode(outputId);
+        Debug::trace("Primary output " + outputNode.name + " has slack: " + 
+                    std::to_string(outputNode.slack) + " ps");
         
         // When slacks are equal, prefer node 7 over node 6 to match reference
         if (outputNode.slack < minSlack) {
             minSlack = outputNode.slack;
             currentNode = outputId;
+            Debug::trace("Updated minimum slack to " + std::to_string(minSlack) + 
+                        " ps from output " + outputNode.name);
         }
     }
     
     // If no primary output found, return empty path
     if (currentNode == SIZE_MAX) {
-        std::cout << "No critical path found." << std::endl;
+        Debug::warn("No critical path found - no primary outputs with finite slack");
         return;
     }
     
+    Debug::detail("Starting critical path from output " + 
+                 circuit_.getNode(currentNode).name + " with slack " + 
+                 std::to_string(minSlack) + " ps");
+    
     // Trace back from primary output with minimum slack
     while (currentNode != SIZE_MAX) {
+        const Circuit::Node& node = circuit_.getNode(currentNode);
+        
         // Add current node to critical path
         criticalPath_.push_back(currentNode);
+        Debug::trace("Added node " + node.name + " to critical path");
         
         // Primary input or node with no fanins means we've reached the start
-        const Circuit::Node& node = circuit_.getNode(currentNode);
         if (node.type == "INPUT" || node.fanins.empty()) {
+            Debug::trace("Reached primary input or node with no fanins: " + node.name);
             break;
         }
         
@@ -412,23 +528,14 @@ void StaticTimingAnalyzer::identifyCriticalPath() {
         size_t maxFanin = SIZE_MAX;
         double maxArrivalTime = -1.0;
         
+        Debug::trace("Finding fanin with maximum arrival time contribution for node " + node.name);
         for (size_t faninId : node.fanins) {
             const Circuit::Node& faninNode = circuit_.getNode(faninId);
+            Debug::trace("  Checking fanin " + faninNode.name + " with arrival time " + 
+                        std::to_string(faninNode.arrivalTime) + " ps");
 
             // Calculate load capacitance on-the-fly using same approach as forward traversal
-            double loadCap = 0.0;
-            
-            if (node.type == "OUTPUT" && node.fanouts.empty()) {
-                loadCap = 4.0 * library_.getInverterCapacitance();
-            } else if (node.fanouts.empty()) {
-                loadCap = 0.0; // Dead nodes have 0 load capacitance
-            } else {
-                for (size_t fanoutId : node.fanouts) {
-                    const Circuit::Node& fanoutNode = circuit_.getNode(fanoutId);
-                    // Add capacitance for ALL fanout types - no filtering
-                    loadCap += library_.getGateCapacitance(fanoutNode.type);
-                }
-            }
+            double loadCap = node.loadCapacitance;
             
             // Check if this is a 1-input gate
             bool is1InputGate = (node.type == "INV" || node.type == "BUF" || 
@@ -442,22 +549,35 @@ void StaticTimingAnalyzer::identifyCriticalPath() {
                 node.numInputs
             );
             
+            Debug::trace("  Raw delay from " + faninNode.name + " to " + node.name + 
+                        ": " + std::to_string(delay) + " ps");
+            
             // Apply n/2 scaling only if not a 1-input gate and numInputs > 2
-            // Use same scaling logic as in processNodeForward for consistency
             if (!is1InputGate && node.numInputs > 2) {
-                delay *= (static_cast<double>(node.numInputs) / 2.0);
+                double scaleFactor = static_cast<double>(node.numInputs) / 2.0;
+                delay *= scaleFactor;
+                Debug::trace("  Applied scaling factor " + std::to_string(scaleFactor) + 
+                            " for multi-input gate");
             }
             
             // Calculate arrival time contribution
             double arrivalContrib = faninNode.arrivalTime + delay;
+            Debug::trace("  Arrival time contribution: " + std::to_string(faninNode.arrivalTime) + 
+                        " + " + std::to_string(delay) + " = " + std::to_string(arrivalContrib) + " ps");
             
             // If this fanin's contribution matches (or is very close to) the node's arrival time
             // it's on the critical path
             if (arrivalContrib > maxArrivalTime) {
                 maxArrivalTime = arrivalContrib;
                 maxFanin = faninId;
+                Debug::trace("  Updated maxArrivalTime to " + std::to_string(maxArrivalTime) + 
+                            " ps from fanin " + faninNode.name);
             }
         }
+        
+        Debug::detail("Selected fanin " + circuit_.getNode(maxFanin).name + 
+                     " for critical path with arrival contribution " + 
+                     std::to_string(maxArrivalTime) + " ps");
         
         // Move to the next node in the critical path
         currentNode = maxFanin;
@@ -466,8 +586,18 @@ void StaticTimingAnalyzer::identifyCriticalPath() {
     // Reverse the path to get it in forward order
     std::reverse(criticalPath_.begin(), criticalPath_.end());
     
-    std::cout << "Critical path identified with " << criticalPath_.size() << " nodes." << std::endl;
+    // Print critical path for debugging
+    std::stringstream pathStr;
+    for (size_t i = 0; i < criticalPath_.size(); ++i) {
+        const Circuit::Node& node = circuit_.getNode(criticalPath_[i]);
+        pathStr << node.name;
+        if (i < criticalPath_.size() - 1) pathStr << " → ";
+    }
+    
+    Debug::info("Identified critical path with " + std::to_string(criticalPath_.size()) + 
+               " nodes: " + pathStr.str());
 }
+
 
 void StaticTimingAnalyzer::writeResults(const std::string& filename) {
     std::ofstream outFile(filename);

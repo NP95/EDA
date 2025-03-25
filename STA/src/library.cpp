@@ -6,7 +6,7 @@
 #include <algorithm>  // For std::upper_bound
 #include <iterator>   // For std::distance
 #include <cmath>      // For std::abs
-
+#include "debug.hpp" 
 double Library::DelayTable::interpolateDelay(double slew, double load) const {
     return interpolate(slew, load, delayValues);
 }
@@ -14,6 +14,8 @@ double Library::DelayTable::interpolateDelay(double slew, double load) const {
 double Library::DelayTable::interpolateSlew(double slew, double load) const {
     return interpolate(slew, load, slewValues);
 }
+
+// In src/library.cpp, modify the DelayTable::interpolate method:
 
 double Library::DelayTable::interpolate(double slew, double load, 
     const std::vector<std::vector<double>>& table) const {
@@ -59,30 +61,40 @@ double Library::DelayTable::interpolate(double slew, double load,
     double c2 = loadCaps[j2];
     
     // Handle cases where indices are the same (clamped to boundary)
+    double interpolatedValue = 0.0;
     if (i1 == i2 && j1 == j2) {
-        return v11 * 1000.0; // Convert back to ps
+        interpolatedValue = v11 * 1000.0; // Convert back to ps
     } else if (i1 == i2) {
         // Linear interpolation on load dimension only
-        if (c1 == c2) return v11 * 1000.0;
-        return ((c2 - load) * v11 + (load - c1) * v12) / (c2 - c1) * 1000.0;
+        if (c1 == c2) 
+            interpolatedValue = v11 * 1000.0;
+        else
+            interpolatedValue = ((c2 - load) * v11 + (load - c1) * v12) / (c2 - c1) * 1000.0;
     } else if (j1 == j2) {
         // Linear interpolation on slew dimension only
-        if (t1 == t2) return v11 * 1000.0;
-        return ((t2 - slew_ns) * v11 + (slew_ns - t1) * v21) / (t2 - t1) * 1000.0;
+        if (t1 == t2) 
+            interpolatedValue = v11 * 1000.0;
+        else
+            interpolatedValue = ((t2 - slew_ns) * v11 + (slew_ns - t1) * v21) / (t2 - t1) * 1000.0;
+    } else {
+        // Fixed full bilinear interpolation - use consistent variable names
+        // and ensure all values in the formula are in the same units
+        interpolatedValue = 
+            (v11 * (c2 - load) * (t2 - slew_ns) +
+             v12 * (load - c1) * (t2 - slew_ns) +
+             v21 * (c2 - load) * (slew_ns - t1) +
+             v22 * (load - c1) * (slew_ns - t1)) /
+            ((c2 - c1) * (t2 - t1)) * 1000.0;
     }
     
-    // Fixed full bilinear interpolation - use consistent variable names
-    // and ensure all values in the formula are in the same units
-    double interpolatedValue = 
-        (v11 * (c2 - load) * (t2 - slew_ns) +
-         v12 * (load - c1) * (t2 - slew_ns) +
-         v21 * (c2 - load) * (slew_ns - t1) +
-         v22 * (load - c1) * (slew_ns - t1)) /
-        ((c2 - c1) * (t2 - t1));
+    // Add debug tracing
+    std::string tableType = (&table == &delayValues) ? "Delay" : "Slew";
+    Debug::traceInterpolation(slew, load, inputSlews, loadCaps, table, interpolatedValue, tableType);
     
     // Convert back to picoseconds
-    return interpolatedValue * 1000.0;
+    return interpolatedValue;
 }
+
 
 double Library::getDelay(const std::string& gateType, double inputSlew, double loadCap, int numInputs) const {
     // Find the gate in the library
