@@ -21,8 +21,7 @@ double Library::DelayTable::interpolate(double slew, double load,
     // Convert input slew from ps to ns for lookup table
     double slew_ns = slew / 1000.0;
     
-    // Find bounding indices for slew using clamping approach
-    // CLAMP ONLY FOR FINDING INDICES per instructor guidance
+    // Find bounding indices for slew
     size_t i1 = 0, i2 = 0;
     if (slew_ns <= inputSlews.front()) {
         i1 = i2 = 0;
@@ -35,7 +34,6 @@ double Library::DelayTable::interpolate(double slew, double load,
     }
     
     // Find bounding indices for load capacitance
-    // CLAMP ONLY FOR FINDING INDICES per instructor guidance
     size_t j1 = 0, j2 = 0;
     if (load <= loadCaps.front()) {
         j1 = j2 = 0;
@@ -59,37 +57,47 @@ double Library::DelayTable::interpolate(double slew, double load,
     double c1 = loadCaps[j1];
     double c2 = loadCaps[j2];
     
-    // Handle cases where indices are the same (clamped to boundary)
     double interpolatedValue = 0.0;
+    
+    // Handle the case when we're exactly at a corner of the table
     if (i1 == i2 && j1 == j2) {
-        interpolatedValue = v11 * 1000.0; // Convert back to ps
-    } else if (i1 == i2) {
-        // Linear interpolation on load dimension only
-        if (c1 == c2) 
-            interpolatedValue = v11 * 1000.0;
-        else
-            interpolatedValue = ((c2 - load) * v11 + (load - c1) * v12) / (c2 - c1) * 1000.0;
-    } else if (j1 == j2) {
-        // Linear interpolation on slew dimension only
-        if (t1 == t2) 
-            interpolatedValue = v11 * 1000.0;
-        else
-            interpolatedValue = ((t2 - slew_ns) * v11 + (slew_ns - t1) * v21) / (t2 - t1) * 1000.0;
-    } else {
-        // Fixed full bilinear interpolation - use consistent variable names
-        // and ensure all values in the formula are in the same units
+        interpolatedValue = v11;
+    }
+    // Handle the case when we need to interpolate in load dimension only
+    else if (i1 == i2) {
+        if (c1 == c2) {
+            interpolatedValue = v11;
+        } else {
+            // Linear interpolation on load dimension
+            interpolatedValue = (v11 * (c2 - load) + v12 * (load - c1)) / (c2 - c1);
+        }
+    }
+    // Handle the case when we need to interpolate in slew dimension only
+    else if (j1 == j2) {
+        if (t1 == t2) {
+            interpolatedValue = v11;
+        } else {
+            // Linear interpolation on slew dimension
+            interpolatedValue = (v11 * (t2 - slew_ns) + v21 * (slew_ns - t1)) / (t2 - t1);
+        }
+    }
+    // Standard bilinear interpolation for all other cases
+    else {
         interpolatedValue = 
             (v11 * (c2 - load) * (t2 - slew_ns) +
              v12 * (load - c1) * (t2 - slew_ns) +
              v21 * (c2 - load) * (slew_ns - t1) +
              v22 * (load - c1) * (slew_ns - t1)) /
-            ((c2 - c1) * (t2 - t1)) * 1000.0;
+            ((c2 - c1) * (t2 - t1));
     }
     
-    // Add debug tracing
-    Debug::traceInterpolation(slew, load, inputSlews, loadCaps, table, interpolatedValue, (&table == &delayValues) ? "Delay" : "Slew");
-    
     // Convert back to picoseconds
+    interpolatedValue *= 1000.0;
+    
+    // Add debug tracing
+    std::string tableType = (&table == &delayValues) ? "Delay" : "Slew";
+    Debug::traceInterpolation(slew, load, inputSlews, loadCaps, table, interpolatedValue, tableType);
+    
     return interpolatedValue;
 }
 
