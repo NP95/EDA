@@ -1,16 +1,33 @@
-CC=g++
-CFLAGS=-w -std=c++11
+# Compiler and flags
+CC = g++
+CFLAGS = -Wall -std=c++17
 
-run: sta.out
-	./sta.out NLDM_lib_max2Inp b19_1.isc
+# Input files
+SRC = PA1Solution.cpp
+INPUT_LIB = NLDM_lib_max2Inp
+INPUT_FILE = c17.isc
 
-main: soham_5618068_ee5301_PA1.cpp
-	$(CC) $(CFLAGS) soham_5618068_ee5301_PA1.cpp -o sta.out
+# Executable name
+TARGET = sta
 
-clean: a.out
-	rm -f sta.out
+# Default target
+all: $(TARGET)
 
-test_main: sta.out
-	./sta.out NLDM_lib_max2Inp b19_1.isc
+# Run target - executes the program with required parameters
+run: $(TARGET)
+	./$(TARGET) $(INPUT_LIB) $(INPUT_FILE)
 
-.PHONY: test_main
+# Compilation rule
+$(TARGET): $(SRC)
+	$(CC) $(CFLAGS) $< -o $@
+
+# Removes executable and any temporary files
+clean:
+	rm -f $(TARGET) *.o *~
+
+# Test target - same as run in this case, but separated for clarity
+test: $(TARGET)
+	./$(TARGET) $(INPUT_LIB) $(INPUT_FILE)
+
+# Phony targets declaration
+.PHONY: all run clean test
