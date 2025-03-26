@@ -1,3 +1,4 @@
+// src/timinganalyzer.cpp
 #include "timinganalyzer.hpp"
 #include "threadpool.hpp"
 #include <algorithm>
@@ -6,7 +7,7 @@
 #include <fstream>
 #include <iomanip>
 #include <cmath>
-#include "debug.hpp" 
+#include "debug.hpp"
 
 // ThreadingStrategy Implementations
 void SequentialThreadingStrategy::processNodesInParallel(
@@ -106,17 +107,13 @@ void StaticTimingAnalyzer::run() {
     // 2. Compute topological ordering
     computeTopologicalOrder();
     
-    // 3. Calculate load capacitance for each gate
-    // Note: Not calling this anymore as we calculate on-the-fly
-    //calculateLoadCapacitance();
-    
-    // 4. Perform forward traversal to calculate arrival times
+    // 3. Perform forward traversal to calculate arrival times
     forwardTraversal();
     
-    // 5. Perform backward traversal to calculate required times and slack
+    // 4. Perform backward traversal to calculate required times and slack
     backwardTraversal();
     
-    // 6. Identify critical path
+    // 5. Identify critical path
     identifyCriticalPath();
 }
 
@@ -161,8 +158,6 @@ void StaticTimingAnalyzer::computeTopologicalOrder() {
         std::cerr << "Warning: Circuit contains cycles. Topological sort is incomplete." << std::endl;
     }
 }
-
-// In src/timinganalyzer.cpp, modify the processNodeForward method:
 
 void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
     Debug::trace("Processing node forward: " + circuit_.getNode(nodeId).name);
@@ -308,7 +303,6 @@ void StaticTimingAnalyzer::processNodeForward(size_t nodeId) {
         }
     }
 }
-
 
 void StaticTimingAnalyzer::forwardTraversal() {
     // Process each node in topological order
@@ -459,7 +453,6 @@ void StaticTimingAnalyzer::processNodeBackward(size_t nodeId) {
                  std::to_string(node.slack) + " ps");
 }
 
-
 void StaticTimingAnalyzer::backwardTraversal() {
     // Set required arrival time at primary outputs to 1.1 * circuit delay
     double reqTime = 1.1 * circuitDelay_;
@@ -597,7 +590,6 @@ void StaticTimingAnalyzer::identifyCriticalPath() {
     Debug::info("Identified critical path with " + std::to_string(criticalPath_.size()) + 
                " nodes: " + pathStr.str());
 }
-
 
 void StaticTimingAnalyzer::writeResults(const std::string& filename) {
     std::ofstream outFile(filename);

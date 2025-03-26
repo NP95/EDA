@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <chrono>
+#include <algorithm>
 #include <memory>
 #include <iomanip>
 #include <cmath> // For std::isinf

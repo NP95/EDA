@@ -7,6 +7,7 @@
 #include <iterator>   // For std::distance
 #include <cmath>      // For std::abs
 #include "debug.hpp" 
+
 double Library::DelayTable::interpolateDelay(double slew, double load) const {
     return interpolate(slew, load, delayValues);
 }
@@ -14,8 +15,6 @@ double Library::DelayTable::interpolateDelay(double slew, double load) const {
 double Library::DelayTable::interpolateSlew(double slew, double load) const {
     return interpolate(slew, load, slewValues);
 }
-
-// In src/library.cpp, modify the DelayTable::interpolate method:
 
 double Library::DelayTable::interpolate(double slew, double load, 
     const std::vector<std::vector<double>>& table) const {
@@ -88,14 +87,14 @@ double Library::DelayTable::interpolate(double slew, double load,
     }
     
     // Add debug tracing
-    std::string tableType = (&table == &delayValues) ? "Delay" : "Slew";
-    Debug::traceInterpolation(slew, load, inputSlews, loadCaps, table, interpolatedValue, tableType);
+    Debug::traceInterpolation(slew, load, inputSlews, loadCaps, table, interpolatedValue, (&table == &delayValues) ? "Delay" : "Slew");
     
     // Convert back to picoseconds
     return interpolatedValue;
 }
 
-
+// IMPORTANT: Removed the n/2 scaling from getDelay and getOutputSlew methods
+// to ensure it's only applied in the timing analyzer
 double Library::getDelay(const std::string& gateType, double inputSlew, double loadCap, int numInputs) const {
     // Find the gate in the library
     auto it = gateTables_.find(gateType);
@@ -108,11 +107,8 @@ double Library::getDelay(const std::string& gateType, double inputSlew, double l
         return 0.0;
     }
     
-    // Get the delay value from interpolation
+    // Get the delay value from interpolation WITHOUT applying n/2 scaling
     double delay = it->second.interpolateDelay(inputSlew, loadCap);
-    
-    // IMPORTANT: NO n/2 scaling here - this will be handled in the timing analyzer
-    // Per instructor guidance, we leave the scaling to one place only
     
     return delay;
 }
@@ -129,11 +125,8 @@ double Library::getOutputSlew(const std::string& gateType, double inputSlew, dou
         return inputSlew;
     }
     
-    // Get the slew value from interpolation
+    // Get the slew value from interpolation WITHOUT applying n/2 scaling
     double slew = it->second.interpolateSlew(inputSlew, loadCap);
-    
-    // IMPORTANT: NO n/2 scaling here - this will be handled in the timing analyzer
-    // Per instructor guidance, we leave the scaling to one place only
     
     return slew;
 }

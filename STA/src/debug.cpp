@@ -5,6 +5,7 @@
 #include <chrono>
 #include <ctime>
 #include <algorithm>
+#include <iomanip>
 
 // Initialize static members
 Debug::Level Debug::level_ = Debug::NONE;
@@ -121,12 +122,14 @@ void Debug::dumpLibraryTables(const Library& library) {
     }
     
     logFile_ << "\n==== Library Tables ====" << std::endl;
-    // This would need to be implemented by accessing the library's tables
-    // You'll need to add a method to Library or make Debug a friend class
-    logFile_ << "Not fully implemented - use library.printTables() method" << std::endl;
+    
+    // Instead of directly accessing private members, we just log that the information is available
+    logFile_ << "Library information is available but not directly accessible from Debug class." << std::endl;
+    logFile_ << "Inverter capacitance: " << library.getInverterCapacitance() << " fF" << std::endl;
+    logFile_ << "Use library.printTables() and library.printAvailableGates() for more details." << std::endl;
+    
     logFile_ << "======================" << std::endl;
 }
-
 
 void Debug::traceInterpolation(
     double slew_ps, double load, 
