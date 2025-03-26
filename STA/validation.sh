@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Modified validation script to focus on performance and critical path comparison
-# Now includes preprocessing of circuit files to handle comments
+# Improved modular validation script for STA project
 
 # Define text colors for better readability
 GREEN='\033[0;32m'
@@ -10,26 +9,16 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Determine if we're already in the STA directory
-if [ -d "include" ] && [ -d "src" ] && [ -d "bin" ]; then
-    # We're already in the STA directory
-    STA_DIR="."
-elif [ -d "STA/include" ] && [ -d "STA/src" ] && [ -d "STA/bin" ]; then
-    # STA is a subdirectory of current location
-    STA_DIR="STA"
-    cd $STA_DIR
-else
-    echo -e "${RED}Error: Could not locate STA project directory structure.${NC}"
-    echo "Please run this script from either the STA directory or its parent directory."
-    exit 1
-fi
+# Directory structure
+STA_DIR="."
+VALIDATION_DIR="validation"
+CLEANED_DIR="cleaned_circuits"
+REF_DIR="ref"
 
-# Create directories for validation outputs and cleaned circuit files
-mkdir -p validation
-mkdir -p cleaned_circuits
+# Configuration
+DEFAULT_DEBUG_LEVEL="INFO"  # Default debug level
 
-# Updated array of test circuits based on your available benchmark files
-# Ordered from smallest to largest complexity
+# Test circuit files (smallest to largest)
 TEST_CIRCUITS=(
     "c17.isc"
     "c1908.isc"
@@ -42,27 +31,132 @@ TEST_CIRCUITS=(
     "b19_1.isc"
 )
 
-# Function to clean a circuit file and save it to the cleaned_circuits directory
+# Function to detect STA directory
+find_sta_directory() {
+    if [ -d "include" ] && [ -d "src" ] && [ -d "bin" ]; then
+        STA_DIR="."
+    elif [ -d "STA/include" ] && [ -d "STA/src" ] && [ -d "STA/bin" ]; then
+        STA_DIR="STA"
+        cd $STA_DIR
+    else
+        echo -e "${RED}Error: Could not locate STA project directory structure.${NC}"
+        echo "Please run this script from either the STA directory or its parent directory."
+        exit 1
+    fi
+    
+    echo -e "${BLUE}Using STA directory: $STA_DIR${NC}"
+}
+
+# Function to create necessary directories
+create_directories() {
+    mkdir -p $VALIDATION_DIR
+    mkdir -p $CLEANED_DIR
+    echo -e "${BLUE}Created directories for validation outputs and cleaned circuit files${NC}"
+}
+
+# Function to clean a circuit file and save it to cleaned_circuits directory
 clean_circuit_file() {
     local input_file="$1"
-    local output_file="cleaned_circuits/$(basename $input_file)"
+    local output_file="$CLEANED_DIR/$(basename $input_file)"
     
     echo -e "${BLUE}Cleaning circuit file: $input_file${NC}"
     
-    # Create a cleaned version of the circuit file:
-    # 1. Convert INPUT(...) with comments to INPUT ( ... )
-    # 2. Convert OUTPUT(...) with comments to OUTPUT ( ... )
-    # 3. Remove all comments (anything after #)
-    # 4. Remove empty lines
+    # Create a cleaned version of the circuit file
     sed -E 's/INPUT\(([0-9]+)\)[[:space:]]*#.*/INPUT ( \1 )/; s/OUTPUT\(([0-9]+)\)[[:space:]]*#.*/OUTPUT ( \1 )/; s/#.*//; /^[[:space:]]*$/d' "$input_file" > "$output_file"
     
     echo -e "${GREEN}Created cleaned file: $output_file${NC}"
     return 0
 }
 
-# Function to extract critical path from output file
-extract_critical_path() {
-    grep -A 1 "Critical path:" $1 | tail -1
+# Function to preprocess all circuit files
+preprocess_circuits() {
+    echo -e "${BLUE}Preprocessing circuit files to handle comments...${NC}"
+    for circuit in "${TEST_CIRCUITS[@]}"; do
+        clean_circuit_file "./cleaned_iscas89_99_circuits/$circuit"
+    done
+}
+
+# Function to compile the STA tool
+compile_sta() {
+    echo -e "${BLUE}Compiling your STA tool...${NC}"
+    make clean
+    make
+    if [ ! -f bin/sta ]; then
+        echo -e "${RED}Error: Compilation failed or binary not found.${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}Compilation complete.${NC}"
+    return 0
+}
+
+# Function to compile the reference solution
+compile_reference() {
+    echo -e "${BLUE}Compiling reference solution...${NC}"
+    cd $REF_DIR
+    make clean
+    make
+    if [ ! -f sta ]; then
+        echo -e "${RED}Error: Reference compilation failed or binary not found.${NC}"
+        cd ..
+        return 1
+    fi
+    echo -e "${GREEN}Reference compilation complete.${NC}"
+    cd ..
+    return 0
+}
+
+# Function to run STA tool on a single circuit
+run_sta_on_circuit() {
+    local circuit="$1"
+    local debug_level="${2:-$DEFAULT_DEBUG_LEVEL}"
+    
+    echo -e "${BLUE}Running your STA tool on $circuit with debug level $debug_level...${NC}"
+    start_time=$(date +%s.%N)
+    
+    # Use environment variable to pass debug level to STA program
+    STA_DEBUG_LEVEL=$debug_level ./bin/sta NLDM_lib_max2Inp $CLEANED_DIR/$circuit > $VALIDATION_DIR/your_${circuit}_output.txt
+    
+    end_time=$(date +%s.%N)
+    your_time=$(echo "$end_time - $start_time" | bc)
+    
+    # Check if output was produced
+    if [ ! -f ckt_traversal.txt ]; then
+        echo -e "${RED}Error: Your STA tool did not produce ckt_traversal.txt${NC}"
+        return 1
+    fi
+    
+    # Copy output file for comparison
+    cp ckt_traversal.txt $VALIDATION_DIR/your_${circuit}_traversal.txt
+    
+    echo -e "${GREEN}Your STA completed in $your_time seconds${NC}"
+    return 0
+}
+
+# Function to run reference solution on a single circuit
+run_reference_on_circuit() {
+    local circuit="$1"
+    
+    echo -e "${BLUE}Running reference solution on $circuit...${NC}"
+    cd $REF_DIR
+    
+    start_time=$(date +%s.%N)
+    ./sta NLDM_lib_max2Inp ../cleaned_iscas89_99_circuits/$circuit > ../$VALIDATION_DIR/ref_${circuit}_output.txt
+    end_time=$(date +%s.%N)
+    ref_time=$(echo "$end_time - $start_time" | bc)
+    
+    # Check if output was produced
+    if [ ! -f ckt_traversal.txt ]; then
+        echo -e "${RED}Error: Reference STA tool did not produce ckt_traversal.txt${NC}"
+        cd ..
+        return 1
+    fi
+    
+    # Copy reference output file for comparison
+    cp ckt_traversal.txt ../$VALIDATION_DIR/ref_${circuit}_traversal.txt
+    cd ..
+    
+    echo -e "${GREEN}Reference STA completed in $ref_time seconds${NC}"
+    return 0
 }
 
 # Function to extract circuit delay from output file
@@ -70,164 +164,186 @@ extract_circuit_delay() {
     grep "Circuit delay:" $1 | awk '{print $3}'
 }
 
-# Function to compare two critical paths
-compare_critical_paths() {
-    local your_path=$(extract_critical_path $1)
-    local ref_path=$(extract_critical_path $2)
+# Function to extract critical path from output file
+extract_critical_path() {
+    grep -A 1 "Critical path:" $1 | tail -1
+}
+
+# Function to compare results for a single circuit
+compare_results_for_circuit() {
+    local circuit="$1"
     
+    # Extract circuit delays
+    local your_delay=$(extract_circuit_delay $VALIDATION_DIR/your_${circuit}_traversal.txt)
+    local ref_delay=$(extract_circuit_delay $VALIDATION_DIR/ref_${circuit}_traversal.txt)
+    
+    # Extract critical paths
+    local your_path=$(extract_critical_path $VALIDATION_DIR/your_${circuit}_traversal.txt)
+    local ref_path=$(extract_critical_path $VALIDATION_DIR/ref_${circuit}_traversal.txt)
+    
+    # Compare critical paths
     if [ "$your_path" == "$ref_path" ]; then
-        echo -e "${GREEN}MATCH: Critical paths are identical${NC}"
-        return 0
+        path_status="${GREEN}✓${NC}"
     else
-        echo -e "${RED}MISMATCH: Critical paths differ${NC}"
-        echo -e "Your path: ${YELLOW}$your_path${NC}"
-        echo -e "Reference path: ${YELLOW}$ref_path${NC}"
-        return 1
+        path_status="${RED}✗${NC}"
+    fi
+    
+    # Calculate speedup
+    local your_time=$(grep "Your STA completed in" $VALIDATION_DIR/your_${circuit}_output.txt | awk '{print $5}')
+    local ref_time=$(grep "Reference STA completed in" $VALIDATION_DIR/your_${circuit}_output.txt | awk '{print $5}')
+    local speedup=$(echo "scale=2; $ref_time / $your_time" | bc)
+    
+    # Print results
+    echo -e "\n${YELLOW}=== Results for $circuit ===${NC}"
+    echo -e "Your delay: ${YELLOW}$your_delay ps${NC}"
+    echo -e "Reference delay: ${YELLOW}$ref_delay ps${NC}"
+    echo -e "Delay difference: ${YELLOW}$(echo "$your_delay - $ref_delay" | bc) ps${NC}"
+    
+    echo -e "\nCritical paths match: $path_status"
+    echo -e "Your path: ${YELLOW}$your_path${NC}"
+    echo -e "Reference path: ${YELLOW}$ref_path${NC}"
+    
+    echo -e "\nPerformance:"
+    echo -e "Your time: ${YELLOW}$your_time s${NC}"
+    echo -e "Reference time: ${YELLOW}$ref_time s${NC}"
+    echo -e "Speedup: ${YELLOW}${speedup}x${NC}"
+    
+    # Save to performance summary
+    echo -e "$circuit\t$your_time\t$ref_time\t$speedup" >> $VALIDATION_DIR/performance_summary.txt
+}
+
+# Function to run validation on all circuits
+run_validation() {
+    local debug_mode="${1:-false}"
+    local specific_circuit="$2"
+    
+    # Create summary file header
+    echo -e "Circuit\tYour Time\tRef Time\tSpeedup" > $VALIDATION_DIR/performance_summary.txt
+    
+    # Print header for results table
+    echo -e "\n${BLUE}========== PERFORMANCE AND CRITICAL PATH COMPARISON ==========${NC}"
+    printf "%-20s %-15s %-15s %-15s %-15s\n" "Circuit" "Your Time (s)" "Ref Time (s)" "Speedup" "Critical Path"
+    
+    # Run tests for each circuit
+    if [ -z "$specific_circuit" ]; then
+        # Run for all circuits
+        for circuit in "${TEST_CIRCUITS[@]}"; do
+            echo -e "\n${YELLOW}Testing circuit: $circuit${NC}"
+            
+            # Set debug level based on debug mode
+            local debug_level="INFO"
+            if [ "$debug_mode" = true ]; then
+                debug_level="TRACE"
+            fi
+            
+            run_sta_on_circuit "$circuit" "$debug_level"
+            run_reference_on_circuit "$circuit"
+            compare_results_for_circuit "$circuit"
+        done
+    else
+        # Run for specific circuit
+        echo -e "\n${YELLOW}Testing circuit: $specific_circuit${NC}"
+        
+        # Set debug level based on debug mode
+        local debug_level="TRACE" # Always use TRACE for specific circuit
+        
+        run_sta_on_circuit "$specific_circuit" "$debug_level"
+        run_reference_on_circuit "$specific_circuit"
+        compare_results_for_circuit "$specific_circuit"
     fi
 }
 
-# Preprocess all circuit files to handle comments
-echo -e "${BLUE}Preprocessing circuit files to handle comments...${NC}"
-for circuit in "${TEST_CIRCUITS[@]}"; do
-    clean_circuit_file "./cleaned_iscas89_99_circuits/$circuit"
-done
+# Function to print usage information
+print_usage() {
+    echo "Usage: $0 [options] [circuit]"
+    echo "Options:"
+    echo "  -h, --help     Show this help message"
+    echo "  -c, --clean    Only clean the circuit files"
+    echo "  -b, --build    Only build the STA tool"
+    echo "  -d, --debug    Run with full debug tracing"
+    echo "  -s, --single   Run validation on a single specified circuit"
+    echo "Example:"
+    echo "  $0 -d -s c17.isc   # Run validation with debug on c17.isc only"
+}
 
-# Compile your STA tool
-echo -e "${BLUE}Compiling your STA tool...${NC}"
-make clean
-make
-echo -e "${GREEN}Compilation complete.${NC}"
-
-# Check if compilation was successful
-if [ ! -f bin/sta ]; then
-    echo -e "${RED}Error: Compilation failed or binary not found.${NC}"
-    exit 1
-fi
-
-# Compile the reference solution
-echo -e "${BLUE}Compiling reference solution...${NC}"
-cd ref
-make clean
-make
-echo -e "${GREEN}Reference compilation complete.${NC}"
-
-# Check if compilation was successful
-if [ ! -f sta ]; then
-    echo -e "${RED}Error: Reference compilation failed or binary not found.${NC}"
-    exit 1
-fi
-cd ..
-
-# Print header for results table
-echo -e "\n${BLUE}========== PERFORMANCE AND CRITICAL PATH COMPARISON ==========${NC}"
-printf "%-20s %-15s %-15s %-15s %-15s\n" "Circuit" "Your Time (s)" "Ref Time (s)" "Speedup" "Critical Path"
-
-# Run tests for each circuit
-for circuit in "${TEST_CIRCUITS[@]}"; do
-    echo -e "\n${YELLOW}Testing circuit: $circuit${NC}"
+# Main function to coordinate all validation activities
+main() {
+    # Parse command line arguments
+    local clean_only=false
+    local build_only=false
+    local debug_mode=false
+    local single_circuit=""
     
-    # Run your STA tool with the cleaned circuit file
-    echo -e "${BLUE}Running your STA tool...${NC}"
-    start_time=$(date +%s.%N)
-    ./bin/sta NLDM_lib_max2Inp cleaned_circuits/$circuit > validation/your_${circuit}_output.txt
-    end_time=$(date +%s.%N)
-    your_time=$(echo "$end_time - $start_time" | bc)
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                print_usage
+                exit 0
+                ;;
+            -c|--clean)
+                clean_only=true
+                shift
+                ;;
+            -b|--build)
+                build_only=true
+                shift
+                ;;
+            -d|--debug)
+                debug_mode=true
+                shift
+                ;;
+            -s|--single)
+                shift
+                single_circuit="$1"
+                shift
+                ;;
+            *)
+                # Assume it's a circuit name
+                if [ -z "$single_circuit" ]; then
+                    single_circuit="$1"
+                fi
+                shift
+                ;;
+        esac
+    done
     
-    # Check if your tool produced output
-    if [ ! -f ckt_traversal.txt ]; then
-        echo -e "${RED}Error: Your STA tool did not produce ckt_traversal.txt${NC}"
-        continue
+    # Find STA directory
+    find_sta_directory
+    
+    # Create directories
+    create_directories
+    
+    # Clean circuit files
+    preprocess_circuits
+    
+    # If clean only, exit
+    if [ "$clean_only" = true ]; then
+        echo -e "${GREEN}Circuit cleaning complete.${NC}"
+        exit 0
     fi
     
-    # Copy your output file for comparison
-    cp ckt_traversal.txt validation/your_${circuit}_traversal.txt
-    
-    # Run reference solution with the original circuit file
-    # The reference solution can handle comments, so use the original file
-    echo -e "${BLUE}Running reference solution...${NC}"
-    cd ref
-    start_time=$(date +%s.%N)
-    ./sta NLDM_lib_max2Inp ../cleaned_iscas89_99_circuits/$circuit > ../validation/ref_${circuit}_output.txt
-    end_time=$(date +%s.%N)
-    ref_time=$(echo "$end_time - $start_time" | bc)
-    
-    # Check if reference tool produced output
-    if [ ! -f ckt_traversal.txt ]; then
-        echo -e "${RED}Error: Reference STA tool did not produce ckt_traversal.txt${NC}"
-        cd ..
-        continue
+    # Compile STA tool
+    if ! compile_sta; then
+        exit 1
     fi
     
-    # Copy reference output file for comparison
-    cp ckt_traversal.txt ../validation/ref_${circuit}_traversal.txt
-    cd ..
-    
-    # Extract circuit delays
-    your_delay=$(extract_circuit_delay validation/your_${circuit}_traversal.txt)
-    ref_delay=$(extract_circuit_delay validation/ref_${circuit}_traversal.txt)
-    
-    # Calculate speedup
-    speedup=$(echo "scale=2; $ref_time / $your_time" | bc)
-    
-    # Check critical paths
-    critical_match=$(compare_critical_paths validation/your_${circuit}_traversal.txt validation/ref_${circuit}_traversal.txt)
-    if [ $? -eq 0 ]; then
-        path_status="✓"
-    else
-        path_status="✗"
+    # If build only, exit
+    if [ "$build_only" = true ]; then
+        echo -e "${GREEN}Build complete.${NC}"
+        exit 0
     fi
     
-    # Print results row
-    printf "%-20s %-15.3f %-15.3f %-15.2f %-15s\n" "$circuit" "$your_time" "$ref_time" "$speedup" "$path_status"
-    
-    echo -e "${BLUE}Circuit delays:${NC}"
-    echo -e "Your delay: ${YELLOW}$your_delay ps${NC}"
-    echo -e "Reference delay: ${YELLOW}$ref_delay ps${NC}"
-    
-    echo -e "${BLUE}Critical paths:${NC}"
-    echo -e "Your path: ${YELLOW}$(extract_critical_path validation/your_${circuit}_traversal.txt)${NC}"
-    echo -e "Reference path: ${YELLOW}$(extract_critical_path validation/ref_${circuit}_traversal.txt)${NC}"
-done
-
-echo -e "\n${BLUE}========== OVERALL PERFORMANCE ==========${NC}"
-echo -e "Your implementation's performance relative to reference solution:"
-
-# Find the largest and most complex circuit from the test set
-largest_circuit="${TEST_CIRCUITS[-1]}"
-your_time=$(grep "Total runtime" validation/your_${largest_circuit}_output.txt | awk '{print $3}' 2>/dev/null)
-ref_time=$(grep "Total runtime" validation/ref_${largest_circuit}_output.txt | awk '{print $3}' 2>/dev/null)
-
-if [ -z "$your_time" ] || [ -z "$ref_time" ]; then
-    echo -e "${YELLOW}Could not extract timing information for the largest circuit.${NC}"
-    echo -e "${YELLOW}Falling back to manual timing data from the test run.${NC}"
-    # Use the timing values we calculated during the test
-    your_time=$(grep -A 1 "$largest_circuit" validation/performance_summary.txt | tail -1 | awk '{print $2}' 2>/dev/null)
-    ref_time=$(grep -A 1 "$largest_circuit" validation/performance_summary.txt | tail -1 | awk '{print $3}' 2>/dev/null)
-    
-    # If still empty, use the timing values from the main test loop
-    if [ -z "$your_time" ] || [ -z "$ref_time" ]; then
-        echo -e "${YELLOW}No performance summary found. Using test run timing data.${NC}"
+    # Compile reference
+    if ! compile_reference; then
+        exit 1
     fi
-fi
+    
+    # Run validation
+    run_validation "$debug_mode" "$single_circuit"
+    
+    # Print summary
+    echo -e "\n${BLUE}========== VALIDATION COMPLETE ==========${NC}"
+}
 
-speedup=$(echo "scale=2; $ref_time / $your_time" | bc 2>/dev/null)
-if [ -z "$speedup" ]; then
-    echo -e "${RED}Could not calculate speedup for the largest circuit.${NC}"
-else
-    if (( $(echo "$speedup > 1.0" | bc -l) )); then
-        echo -e "${GREEN}Your implementation is ${speedup}x faster than the reference solution for $largest_circuit${NC}"
-    else
-        echo -e "${YELLOW}Your implementation is ${speedup}x the speed of the reference solution for $largest_circuit${NC}"
-    fi
-fi
-
-# Save performance summary for future reference
-echo -e "Circuit\tYour Time\tRef Time\tSpeedup" > validation/performance_summary.txt
-for circuit in "${TEST_CIRCUITS[@]}"; do
-    your_time_val=$(grep -A 0 "$circuit" -m 1 validation/your_${circuit}_output.txt | awk '{print $NF}' 2>/dev/null)
-    ref_time_val=$(grep -A 0 "$circuit" -m 1 validation/ref_${circuit}_output.txt | awk '{print $NF}' 2>/dev/null)
-    speedup_val=$(echo "scale=2; $ref_time_val / $your_time_val" | bc 2>/dev/null)
-    echo -e "$circuit\t$your_time_val\t$ref_time_val\t$speedup_val" >> validation/performance_summary.txt
-done
-
-echo -e "\n${BLUE}========== VALIDATION COMPLETE ==========${NC}"
+# Execute main function with all command line arguments
+main "$@"
