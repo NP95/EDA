@@ -7,6 +7,7 @@
 #include <vector>
 #include <cctype>
 #include <cstring>
+#include "debug.hpp"
 
 class TokenScanner {
 private:
@@ -16,9 +17,13 @@ private:
     
 public:
     // Constructor that loads file directly
-    explicit TokenScanner(const std::string& filename) {
-        loadFile(filename);
-    }
+    explicit TokenScanner(const std::string& filename)
+    : current_(nullptr), end_(nullptr)
+{
+    // Temporarily comment out:
+     loadFile(filename);
+    Debug::trace("TokenScanner constructed for " + filename + " (loadFile SKIPPED)");
+}
     
     // Constructor that uses an existing buffer
     TokenScanner(const char* buffer, size_t size) 
@@ -26,44 +31,123 @@ public:
           current_(buffer_.data()), 
           end_(buffer_.data() + size) {}
     
-    bool loadFile(const std::string& filename) {
-        std::ifstream file(filename, std::ios::binary | std::ios::ate);
-        if (!file.is_open()) return false;
+          bool loadFile(const std::string& filename) {
+            Debug::trace("loadFile: Entered for " + filename);
+            try {
+                Debug::trace("loadFile: Creating ifstream...");
+                std::ifstream file(filename, std::ios::binary | std::ios::ate);
+                Debug::trace("loadFile: ifstream object created.");
         
-        std::streamsize size = file.tellg();
-        file.seekg(0, std::ios::beg);
+                Debug::trace("loadFile: Checking if file is open...");
+                if (!file.is_open()) {
+                    // Use Debug::error here as Debug framework should be initialized by now
+                    Debug::error("TokenScanner::loadFile FAILED to open: " + filename);
+                    return false;
+                }
+                Debug::trace("loadFile: File is open.");
         
-        buffer_.resize(size);
-        file.read(buffer_.data(), size);
+                Debug::trace("loadFile: Getting file size (tellg)...");
+                std::streamsize size = file.tellg();
+                Debug::trace("loadFile: File size = " + std::to_string(size));
         
-        current_ = buffer_.data();
-        end_ = buffer_.data() + size;
-        return true;
-    }
-    
+                Debug::trace("loadFile: Seeking to beginning (seekg)...");
+                file.seekg(0, std::ios::beg);
+                Debug::trace("loadFile: Seek complete.");
+        
+                // Handle potential empty file case
+                if (size <= 0) {
+                     Debug::warn("TokenScanner::loadFile: File is empty or size is non-positive for " + filename);
+                     buffer_.clear(); // Ensure buffer is empty
+                     current_ = nullptr;
+                     end_ = nullptr;
+                     return true; // Technically successful loading of an empty file
+                }
+        
+        
+                Debug::trace("loadFile: Resizing buffer...");
+                buffer_.resize(size);
+                Debug::trace("loadFile: Buffer resized.");
+        
+                Debug::trace("loadFile: Reading file content...");
+                file.read(buffer_.data(), size);
+                Debug::trace("loadFile: File read complete.");
+        
+                // Check stream state after read (optional but good)
+                if (!file) {
+                     Debug::warn("TokenScanner::loadFile: Stream state indicates error after reading " + std::to_string(file.gcount()) + " bytes from " + filename);
+                     // Decide if this is a fatal error or not
+                }
+        
+        
+                current_ = buffer_.data();
+                end_ = buffer_.data() + size;
+                Debug::trace("loadFile: Buffer pointers set.");
+        
+            } catch (const std::bad_cast& bc) {
+                // Catch bad_cast specifically
+                Debug::error("loadFile: Caught std::bad_cast during file operations for " + filename + ": " + bc.what());
+                return false;
+            } catch (const std::exception& e) {
+                // Catch other potential standard exceptions (e.g., from resize)
+                Debug::error("loadFile: Caught std::exception during file operations for " + filename + ": " + e.what());
+                return false;
+            }
+        
+            Debug::trace("loadFile: Exiting successfully for " + filename);
+            return true;
+        }
+            
     bool hasMoreTokens() const {
         return current_ < end_;
     }
     
-    // Skip whitespace and comments
+    // Skip whitespace and comments (Handles // and /* */)
     void skipWhitespaceAndComments() {
         while (current_ < end_) {
-            // Skip whitespace
+            // Skip whitespace (space, tab, newline, carriage return, etc.)
             if (isspace(*current_)) {
                 current_++;
-                continue;
+                continue; // Check next character
             }
-            
-            // Skip comments (// style)
+
+            // Skip C++ style comments (// style)
             if (current_ + 1 < end_ && *current_ == '/' && *(current_ + 1) == '/') {
-                while (current_ < end_ && *current_ != '\n')
+                // Advance until newline or end of buffer
+                while (current_ < end_ && *current_ != '\n') {
                     current_++;
-                continue;
+                }
+                // If we found a newline, advance past it
+                if (current_ < end_ && *current_ == '\n') {
+                    current_++;
+                }
+                continue; // Check character after the comment line
             }
-            
-            break;  // Not whitespace or comment
+
+            // Skip C style comments (/* ... */)
+            if (current_ + 1 < end_ && *current_ == '/' && *(current_ + 1) == '*') {
+                current_ += 2; // Move past /*
+                // Advance until */ is found or end of buffer
+                while (current_ + 1 < end_) {
+                    if (*current_ == '*' && *(current_ + 1) == '/') {
+                        current_ += 2; // Move past */
+                        goto next_iteration; // Use goto to jump to the outer loop's next iteration check
+                    }
+                    current_++; // Move to next character inside the comment
+                }
+                // Reached end of buffer without finding */ (unterminated comment)
+                // The loop condition (current_ < end_) will handle exiting.
+                // We jump here if the inner loop finishes by reaching end_.
+                next_iteration:;
+                continue; // Check character after the */ or after reaching end_ in comment
+            }
+
+            // If none of the above, it's not whitespace or a comment start
+            break; // Exit the while loop, current_ points to a valid token start
         }
     }
+
+    // --- Keep the rest of the TokenScanner class members ---
+    // loadFile, hasMoreTokens, nextToken, getLine, peekToken, consumeIf, getLineNumber
     
     // Get next token
     std::string nextToken() {
@@ -148,22 +232,30 @@ public:
     }
     
     // Check if current position matches the given token and consume it if true
-    bool consumeIf(const std::string& expected) {
-        skipWhitespaceAndComments();
-        size_t len = expected.length();
-        
-        if (current_ + len <= end_ && 
-            strncmp(current_, expected.c_str(), len) == 0) {
-            // Make sure this is a complete token
-            if (current_ + len == end_ || 
-                !isalnum(*(current_ + len))) {
-                current_ += len;
-                return true;
-            }
+// In tokenscanner.hpp
+bool consumeIf(const std::string& expected) {
+    skipWhitespaceAndComments();
+    size_t len = expected.length();
+
+    if (current_ + len <= end_ &&
+        strncmp(current_, expected.c_str(), len) == 0) {
+
+        // --- MODIFIED BOUNDARY CHECK ---
+        // Check if it's a complete token match OR
+        // if it's a single non-alphanumeric character (like '(', '{', ';', etc.)
+        bool isSingleSymbol = (len == 1 && !isalnum(*current_));
+
+        if (isSingleSymbol || current_ + len == end_ || !isalnum(*(current_ + len))) {
+        // --- END MODIFIED BOUNDARY CHECK ---
+            current_ += len;
+            return true;
         }
-        return false;
+        // If the boundary check fails (e.g. consuming "lib" when next char is 'r')
+        // Debug::trace("consumeIf failed boundary check for '" + expected + "'"); // Optional trace
     }
-    
+    return false;
+}
+     
     // Get current line number for error reporting
     int getLineNumber() const {
         int line = 1;

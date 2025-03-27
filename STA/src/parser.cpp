@@ -1,6 +1,8 @@
 // parser.cpp
 #include "parser.hpp"
 #include <sys/stat.h>
+#include "debug.hpp" // Make sure debug is included
+
 
 bool Parser::shouldUseScanner() const {
     // Decide based on file size - use scanner for files > 1MB
@@ -12,11 +14,37 @@ bool Parser::shouldUseScanner() const {
 }
 
 bool Parser::initialize() {
-    if (useScanner_ && shouldUseScanner()) {
-        scanner_ = std::make_unique<TokenScanner>(filename_);
-        return scanner_ != nullptr;
+    Debug::trace("Entering Parser::initialize() for " + filename_ + " with useScanner_ = " + (useScanner_ ? "true" : "false")); // Use Debug::trace
+    if (useScanner_) {
+        Debug::trace("Trying to create TokenScanner..."); // Use Debug::trace
+        try {
+            scanner_ = std::make_unique<TokenScanner>(filename_);
+            if (!scanner_) {
+                 Debug::error("make_unique<TokenScanner> resulted in nullptr for " + filename_); // Use Debug::error
+                 return false;
+            }
+            Debug::trace("TokenScanner object created (pointer is not null)."); // Use Debug::trace
+
+            // Optional: Add a method to TokenScanner like 'bool isReady() const'
+            // that returns true only if loadFile succeeded.
+            // if (!scanner_->isReady()) {
+            //     Debug::error("TokenScanner created but failed to load file " + filename_);
+            //     return false;
+            // }
+
+        } catch (const std::exception& e) {
+             Debug::error("Exception creating TokenScanner for " + filename_ + ": " + e.what()); // Use Debug::error
+             return false;
+        }
+        Debug::trace("Exiting Parser::initialize() successfully (scanner path)."); // Use Debug::trace
+        return true;
     } else {
-        return openFile();
+        Debug::trace("Using ifstream path..."); // Use Debug::trace
+        bool fileOk = openFile();
+        // Use Debug::error if openFile fails internally
+        // if (!fileOk) Debug::error("openFile() failed for " + filename_);
+        Debug::trace(std::string("Exiting Parser::initialize() (ifstream path) with status: ") + (fileOk ? "true" : "false"));
+        return fileOk;
     }
 }
 

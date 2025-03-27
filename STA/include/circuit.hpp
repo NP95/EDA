@@ -6,6 +6,8 @@
 #include <vector>
 #include <unordered_map>
 #include <limits>
+#include <stdexcept> // Include for std::out_of_range
+
 #include "library.hpp"  // Include Library definition
 
 // Forward declarations
@@ -13,19 +15,24 @@ class NetlistParser;
 
 class Circuit {
 public:
-    struct Node {
-        std::string name;
-        std::string type;  // Gate type or "INPUT", "OUTPUT", "DFF"
-        int numInputs;
-        std::vector<size_t> fanins;
-        std::vector<size_t> fanouts;
-        double arrivalTime;
-        double requiredTime;
-        double slack;
-        double inputSlew;
-        double outputSlew;
-        double loadCapacitance;
-    };
+
+struct Node {
+    std::string name;
+    std::string type;
+    int numInputs;
+    std::vector<size_t> fanins;
+    std::vector<size_t> fanouts;
+    double arrivalTime;
+    double requiredTime;
+    double slack;
+    double inputSlew;
+    double outputSlew;
+    double loadCapacitance;
+    // Add these flags:
+    bool isPrimaryInput = false;  // Default to false
+    bool isPrimaryOutput = false; // Default to false
+};
+
 
 private:
     std::vector<Node> nodes_;
@@ -42,6 +49,15 @@ public:
     void addConnection(const std::string& from, const std::string& to);
     
     // Accessor methods
+        // Add this non-const version:
+        Node& getNode(size_t id) {
+            // Optional: Add bounds checking for safety
+            if (id >= nodes_.size()) {
+                throw std::out_of_range("Circuit::getNode: Node ID out of range");
+            }
+            return nodes_[id];
+        }
+    
     const Node& getNode(size_t id) const { return nodes_[id]; }
     size_t getNodeId(const std::string& name) const { return nameToId_.at(name); }
     

@@ -17,10 +17,10 @@ private:
     bool parseGate(const std::string& line);
     
     // Scanner-based parsing methods
-    bool parseScannerInputs(const std::string& line);
-    bool parseScannerOutputs(const std::string& line);
-    bool parseScannerDFF(const std::string& line);
-    bool parseScannerGate(const std::string& line);
+    bool parseScannerInputs(const std::string& line, int lineNum); // Add lineNum
+    bool parseScannerOutputs(const std::string& line, int lineNum); // Add lineNum
+    bool parseScannerDFF(const std::string& line, int lineNum);    // Add lineNum
+    bool parseScannerGate(const std::string& line, int lineNum);   // Add lineNum
 
 public:
     NetlistParser(const std::string& filename, Circuit& circuit, bool useScanner = true)
