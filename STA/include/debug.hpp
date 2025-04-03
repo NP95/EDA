@@ -9,9 +9,6 @@
 #include <iomanip>
 #include <vector>
 
-// Forward declarations
-class Circuit;
-class Library;
 
 class Debug {
 public:
