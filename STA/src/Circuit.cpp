@@ -262,53 +262,57 @@ double Circuit::calculateLoadCapacitance(int nodeId) const {
     // Get the node for which we are calculating the load it drives
     const Node& node = netlist_.at(nodeId);
     double loadCap = 0.0; // Start with zero load
+    bool hasNonPOFanout = false; // Track if we have any non-PO fanouts
 
     STA_TRACE("  Checking " + std::to_string(node.getFanOutList().size()) + " fanouts for load contribution...");
     for (int fanOutNodeId : node.getFanOutList()) {
         // Check existence before access
-         if (!netlist_.count(fanOutNodeId)) {
+        if (!netlist_.count(fanOutNodeId)) {
             STA_WARN("  Fanout node " + std::to_string(fanOutNodeId) + " not found in netlist. Skipping its load contribution.");
             continue;
-         }
+        }
         const Node& fanOutNode = netlist_.at(fanOutNodeId);
 
-        // *** FIX: Check if the FANOUT node is a Primary Output sink ***
-        if (fanOutNode.isPrimaryOutput()) { // PO or DFF_IN
-            STA_TRACE("    Fanout Node " + std::to_string(fanOutNodeId) + " is Primary Output/DFF_IN.");
-            if (gateLib_.hasGate(INV_GATE_NAME)) {
-                 double invCap = gateLib_.getGate(INV_GATE_NAME).getCapacitance();
-                 double poLoadContribution = PRIMARY_OUTPUT_LOAD_FACTOR * invCap;
-                 loadCap += poLoadContribution;
-                 oss << "      Adding PO load contribution: " << poLoadContribution << " fF (Based on INV cap " << invCap << "). Total now: " << loadCap << " fF";
-                 STA_TRACE(oss.str()); oss.str("");
-            } else {
-                 STA_WARN("Reference gate '" + std::string(INV_GATE_NAME) + "' not found in library. PO load contribution is 0 for fanout " + std::to_string(fanOutNodeId) + ".");
-            }
-        }
-        // *** ELSE: Add input capacitance if the fanout is a regular gate input ***
-        else if (!fanOutNode.isPrimaryInput() && // Not a PI or DFF_OUT
-                 fanOutNode.getNodeType() != OUTPUT_NODE_TYPE && // Not a PO marker itself (shouldn't happen if isPrimaryOutput is correct)
-                 fanOutNode.getNodeType() != INPUT_NODE_TYPE)   // Not an INPUT marker itself
-        {
+        // First check if it's a regular gate (not a PO or PI)
+        if (!fanOutNode.isPrimaryOutput() && !fanOutNode.isPrimaryInput() &&
+            fanOutNode.getNodeType() != OUTPUT_NODE_TYPE && 
+            fanOutNode.getNodeType() != INPUT_NODE_TYPE) {
+            
+            hasNonPOFanout = true; // This is a regular gate fanout
+            
             if (gateLib_.hasGate(fanOutNode.getNodeType())) {
                 double gateCap = gateLib_.getGate(fanOutNode.getNodeType()).getCapacitance();
                 loadCap += gateCap;
-                oss << "    Adding gate input cap from fanout Node " << fanOutNodeId << " (" << fanOutNode.getNodeType() << "): " << gateCap << " fF. Total now: " << loadCap << " fF";
+                oss << "    Adding gate input cap from fanout Node " << fanOutNodeId 
+                    << " (" << fanOutNode.getNodeType() << "): " << gateCap 
+                    << " fF. Total now: " << loadCap << " fF";
                 STA_TRACE(oss.str()); oss.str("");
             } else {
-                 STA_TRACE("    Skipping cap from fanout Node " + std::to_string(fanOutNodeId) + " (Type '" + fanOutNode.getNodeType() + "' not in library or not a gate).");
+                STA_TRACE("    Skipping cap from fanout Node " + std::to_string(fanOutNodeId) + 
+                          " (Type '" + fanOutNode.getNodeType() + "' not in library or not a gate).");
+            }
+        } else if (fanOutNode.isPrimaryOutput()) {
+            // Just track PO fanouts but don't add special load yet
+            STA_TRACE("    Fanout Node " + std::to_string(fanOutNodeId) + " is Primary Output/DFF_IN.");
+        } else {
+            STA_TRACE("    Skipping cap from fanout Node " + std::to_string(fanOutNodeId) + 
+                      " (Type: " + fanOutNode.getNodeType() + " - PI/DFF Boundary or PO marker).");
+        }
+    }
+
+    // After checking all fanouts, determine if we should use special PO load rule
+    if (!node.getFanOutList().empty()) {
+        if (!hasNonPOFanout) { // Only PO fanouts or no valid fanouts at all
+            // Apply the special PO load rule - this node is "the final stage of gates"
+            if (gateLib_.hasGate(INV_GATE_NAME)) {
+                double invCap = gateLib_.getGate(INV_GATE_NAME).getCapacitance();
+                loadCap = PRIMARY_OUTPUT_LOAD_FACTOR * invCap; // Replace previous calculation
+                oss << "    All fanouts are POs - applying special PO load rule: " 
+                    << loadCap << " fF (4 × INV cap " << invCap << ")";
+                STA_TRACE(oss.str()); oss.str("");
             }
         }
-        // ELSE: Fanout is PI/DFF_OUT or unexpected type - add no load contribution
-        else {
-             STA_TRACE("    Skipping cap from fanout Node " + std::to_string(fanOutNodeId) + " (Type: " + fanOutNode.getNodeType() + " - PI/DFF Boundary or PO marker).");
-        }
-    } // End for fanOutNodeId
-
-    // Handle Dead Nodes (Nodes with NO fanout): loadCap will correctly remain 0.
-// Handle nodes with no fanouts - check if it's a PO first
-if (node.getFanOutList().empty()) {
-    if (node.isPrimaryOutput()) { // This is a PO node, not just a "dead node"
+    } else if (node.isPrimaryOutput()) { // This is a PO node with no fanouts
         if (gateLib_.hasGate(INV_GATE_NAME)) {
             double invCap = gateLib_.getGate(INV_GATE_NAME).getCapacitance();
             loadCap = PRIMARY_OUTPUT_LOAD_FACTOR * invCap;
@@ -320,14 +324,11 @@ if (node.getFanOutList().empty()) {
         // This is genuinely a "dead node" with no significance
         STA_TRACE("  Node " + std::to_string(nodeId) + " has no fanouts (dead node). Load = 0.0 fF.");
     }
-}
-
 
     oss << "Exit calculateLoadCapacitance for Node " << nodeId << ". Result = " << loadCap << " fF";
     STA_DETAIL(oss.str()); // Use DETAIL level for final result
     return loadCap;
 }
-
 
 void Circuit::performTopologicalSort() {
      topologicalOrder_.clear();
@@ -767,17 +768,6 @@ std::vector<int> Circuit::findCriticalPath() const {
                   maxPrevArrivalTime = fanInNode.getArrivalTime();
                   criticalFanInNodeId = fanInNodeId;
              }
-              // Optional secondary check (more robust): Check if arrivalViaThisInput is very close to currentTargetArrival
-              // if (std::fabs(arrivalViaThisInput - currentTargetArrival) < 1e-9) { // Tolerance for float comparison
-              //     // If multiple paths match arrival time, prefer the one with latest fan-in arrival
-              //      if (fanInNode.getArrivalTime() > maxPrevArrivalTime) {
-              //          maxPrevArrivalTime = fanInNode.getArrivalTime();
-              //          criticalFanInNodeId = fanInNodeId;
-              //      } else if (criticalFanInNodeId == -1) { // First match found
-              //           maxPrevArrivalTime = fanInNode.getArrivalTime();
-              //           criticalFanInNodeId = fanInNodeId;
-              //      }
-              // }
         }
 
          if (criticalFanInNodeId == -1){
@@ -790,5 +780,30 @@ std::vector<int> Circuit::findCriticalPath() const {
     }
 
     std::reverse(criticalPath.begin(), criticalPath.end());
+    
+    // *** FIX: Add the primary output node that's driven by the last node in our path ***
+    if (!criticalPath.empty()) {
+        int lastNodeId = criticalPath.back();
+        // Find the PO that this node drives (use the one with minimum slack if multiple)
+        int criticalPO = -1;
+        double minSlack = std::numeric_limits<double>::max();
+        
+        for (const auto& [nodeId, node] : netlist_) {
+            if (node.isPrimaryOutput() && !node.getFanInList().empty() && 
+                node.getFanInList()[0] == lastNodeId) {
+                // This is a PO driven by our last node
+                if (node.getSlack() < minSlack) {
+                    minSlack = node.getSlack();
+                    criticalPO = nodeId;
+                }
+            }
+        }
+        
+        if (criticalPO != -1) {
+            // Add the PO to complete the critical path
+            criticalPath.push_back(criticalPO);
+        }
+    }
+    
     return criticalPath;
 }
