@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall -Wextra -O3 CMakeFiles/fm.dir/main.cpp.o CMakeFiles/fm.dir/DataStructures/Netlist.cpp.o CMakeFiles/fm.dir/DataStructures/PartitionState.cpp.o CMakeFiles/fm.dir/DataStructures/GainBucket.cpp.o CMakeFiles/fm.dir/IO/Parser.cpp.o CMakeFiles/fm.dir/IO/OutputGenerator.cpp.o CMakeFiles/fm.dir/Algorithm/FMEngine.cpp.o -o fm 
