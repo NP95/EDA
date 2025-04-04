@@ -306,9 +306,21 @@ double Circuit::calculateLoadCapacitance(int nodeId) const {
     } // End for fanOutNodeId
 
     // Handle Dead Nodes (Nodes with NO fanout): loadCap will correctly remain 0.
-    if (node.getFanOutList().empty()) {
-         STA_TRACE("  Node " + std::to_string(nodeId) + " has no fanouts (dead node). Load = 0.0 fF.");
+// Handle nodes with no fanouts - check if it's a PO first
+if (node.getFanOutList().empty()) {
+    if (node.isPrimaryOutput()) { // This is a PO node, not just a "dead node"
+        if (gateLib_.hasGate(INV_GATE_NAME)) {
+            double invCap = gateLib_.getGate(INV_GATE_NAME).getCapacitance();
+            loadCap = PRIMARY_OUTPUT_LOAD_FACTOR * invCap;
+            oss << "  Node " << nodeId << " is a PO with no fanouts. Setting load = " << loadCap 
+                << " fF (4 × INV cap " << invCap << ")";
+            STA_TRACE(oss.str()); oss.str("");
+        }
+    } else {
+        // This is genuinely a "dead node" with no significance
+        STA_TRACE("  Node " + std::to_string(nodeId) + " has no fanouts (dead node). Load = 0.0 fF.");
     }
+}
 
 
     oss << "Exit calculateLoadCapacitance for Node " << nodeId << ". Result = " << loadCap << " fF";
