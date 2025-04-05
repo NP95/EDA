@@ -105,8 +105,9 @@ void FMEngine::run() {
 
 void FMEngine::initializePartitions() {
     std::cout << "Creating initial partition..." << std::endl;
-    // Create initial random partition
+    // Get references to cells and nets
     std::vector<Cell>& cells = const_cast<std::vector<Cell>&>(netlist_.getCells());
+    std::vector<Net>& nets = const_cast<std::vector<Net>&>(netlist_.getNets());
     
     // Validate cells vector
     if (cells.empty()) {
@@ -114,74 +115,39 @@ void FMEngine::initializePartitions() {
         return;
     }
 
-    // Pre-validation phase 1: First make sure all cells and nets have empty connections
-    // This extreme approach works well for corrupted data - reset everything and rebuild safely
-    std::cout << "Pre-validation phase 1: Resetting all cell-net connections..." << std::endl;
+    // Reset all cell partitions (but preserve connectivity)
     for (auto& cell : cells) {
-        // Reset the nets vector completely for all cells
-        cell.nets.clear();
-        cell.partition = -1; // Reset partition assignment
+        cell.partition = -1; // Mark as unassigned
+        cell.gain = 0;       // Reset gain
+        cell.locked = false; // Make sure cell is unlocked
     }
     
-    for (auto& net : const_cast<std::vector<Net>&>(netlist_.getNets())) {
-        // Reset the cells vector completely for all nets
-        net.cells.clear();
+    // Reset net partition counts 
+    for (auto& net : nets) {
+        net.partitionCount[0] = 0;
+        net.partitionCount[1] = 0;
     }
     
-    // Pre-validation phase 2: Rebuild connections using netlist information
-    std::cout << "Pre-validation phase 2: Rebuilding safe cell-net connections..." << std::endl;
-    // We'll use the netlist's internal connectivity information to rebuild connections
-    
-    // First, collect all the cell-net connections from the parser
-    // The parser has successfully read in all connections - use that as our source of truth
-    // For this specific fix, we'll need to modify the Netlist class to expose its internal connection data
-    // or implement a method to rebuild connections safely
-    
-    // For now, we'll implement a simple but safe approach:
-    // We won't try to rebuild connections here (would require parser modifications)
-    // Instead, we'll just create fresh partitions with the existing netlist objects
-    
-    // Pre-validation phase 3: Verify critical data structures after reset
-    std::cout << "Pre-validation phase 3: Verifying data structure integrity..." << std::endl;
-    int cellsWithoutNets = 0;
-    int netsWithoutCells = 0;
-    
-    for (auto& cell : cells) {
-        if (cell.nets.empty()) {
-            cellsWithoutNets++;
-        }
-    }
-    
-    for (auto& net : const_cast<std::vector<Net>&>(netlist_.getNets())) {
-        if (net.cells.empty()) {
-            netsWithoutCells++;
-        }
-    }
-    
-    std::cout << "Found " << cellsWithoutNets << " cells without nets and " 
-              << netsWithoutCells << " nets without cells after reset" << std::endl;
-    
-    // Since we've reset all connections, we can skip the detailed validation phase
-    // and move directly to partitioning
-    
-    // Use current time as random seed
-    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::mt19937 gen(seed);
-    std::uniform_int_distribution<> dis(0, 1);
-
-    // Randomly assign cells to partitions
-    int partition1Count = 0;
+    // Create balanced initial partition
     int totalCells = cells.size();
     int targetSize = totalCells / 2;
-
-    std::cout << "Assigning cells to partitions..." << std::endl;
+    int partition1Count = 0;
+    
+    // Assign cells to partitions sequentially for deterministic results
     for (auto& cell : cells) {
-        // Assign to partition 1 if we haven't reached target size
+        // Assign to partition 0 if we haven't reached target size
         if (partition1Count < targetSize) {
             cell.partition = 0;
             partition1Count++;
         } else {
             cell.partition = 1;
+        }
+        
+        // Update partition counts for all nets this cell belongs to
+        for (Net* net : cell.nets) {
+            if (net) {
+                net->partitionCount[cell.partition]++;
+            }
         }
     }
     
@@ -189,18 +155,30 @@ void FMEngine::initializePartitions() {
     std::cout << "Partition sizes: [" << partition1Count << ", " 
               << (totalCells - partition1Count) << "]" << std::endl;
     
-    // Initialize other FMEngine state
-    // Reset partition sizes by setting them directly
+    // Update partition state
     partitionState_.updatePartitionSize(0, partition1Count);
     partitionState_.updatePartitionSize(1, totalCells - partition1Count);
     
-    // Since connections were reset, cut size will be 0
-    // We can proceed without calculating the initial cut size
-    partitionState_.updateCutSize(0);
+    // Calculate initial cut size
+    int initialCutSize = 0;
+    for (const auto& net : nets) {
+        // A net is cut if it has cells in both partitions
+        if (net.partitionCount[0] > 0 && net.partitionCount[1] > 0) {
+            initialCutSize++;
+        }
+    }
     
-    std::cout << "FMEngine initialization completed with connection reset." << std::endl;
-    std::cout << "Warning: Connections were reset due to corrupted data." << std::endl;
-    std::cout << "The algorithm will proceed but results may not be optimal." << std::endl;
+    // Set the initial cut size
+    partitionState_.updateCutSize(initialCutSize);
+    std::cout << "Initial cut size: " << initialCutSize << std::endl;
+    
+    // Calculate initial cell gains
+    calculateInitialGains();
+    
+    // Initialize the gain bucket with all cells
+    gainBucket_.initialize(cells);
+    
+    std::cout << "FMEngine initialization completed." << std::endl;
 }
 
 bool FMEngine::runPass() {
@@ -357,8 +335,6 @@ int FMEngine::calculateCellGain(Cell* cell) const {
         return 0;
     }
 
-    std::cout << "Calculating gain for cell " << cell->name << std::endl;
-
     int gain = 0;
     int fromPartition = cell->partition;
     int toPartition = 1 - fromPartition;
@@ -370,23 +346,18 @@ int FMEngine::calculateCellGain(Cell* cell) const {
             continue;
         }
 
-        std::cout << "  Processing net " << net->name 
-                  << " [" << net->partitionCount[0] << ", " << net->partitionCount[1] << "]" << std::endl;
-
-        // Critical net conditions:
-        // 1. If this is the only cell in fromPartition, moving it would remove the net from cut
+        // Gain calculation based on FM algorithm:
+        // 1. If this is the only cell in fromPartition, moving it would make the net uncut
         if (net->partitionCount[fromPartition] == 1) {
-            gain++; // Uncutting the net IMPROVES (reduces) cut size -> POSITIVE gain
-            std::cout << "    Net would become uncut (+1 gain)" << std::endl;
+            gain++; // Net becomes uncut (reduces cutsize) -> positive gain
         }
-        // 2. If there are no cells in toPartition, moving this cell would add the net to cut
+        
+        // 2. If there are no cells in toPartition, moving this cell would make the net cut
         if (net->partitionCount[toPartition] == 0) {
-            gain--; // Cutting the net WORSENS (increases) cut size -> NEGATIVE gain
-            std::cout << "    Net would become cut (-1 gain)" << std::endl;
+            gain--; // Net becomes cut (increases cutsize) -> negative gain
         }
     }
 
-    std::cout << "  Final gain: " << gain << std::endl;
     return gain;
 }
 
@@ -396,94 +367,30 @@ void FMEngine::updateGainsAfterMove(Cell* movedCell) {
         return;
     }
 
-    std::cout << "Updating gains after moving cell " << movedCell->name << std::endl;
-
-    // Store current partition counts for validation
-    std::vector<std::pair<Net*, std::array<int, 2>>> oldPartitionCounts;
+    // Track affected cells that need gain updates
+    std::unordered_set<Cell*> cellsToUpdate;
+    
+    // Process each net connected to the moved cell
     for (Net* net : movedCell->nets) {
-        if (!net) {
-            std::cerr << "updateGainsAfterMove: Error - found null net pointer for cell " 
-                     << movedCell->name << std::endl;
-            continue;
+        if (!net) continue;
+        
+        // Get all cells on this net
+        for (Cell* neighborCell : net->cells) {
+            // Skip the moved cell and locked cells
+            if (neighborCell == movedCell || neighborCell->locked) continue;
+            
+            // Add to update list
+            cellsToUpdate.insert(neighborCell);
         }
-        oldPartitionCounts.push_back({net, {net->partitionCount[0], net->partitionCount[1]}});
     }
-
-    // For each net connected to moved cell
-    for (size_t i = 0; i < movedCell->nets.size(); i++) {
-        Net* net = movedCell->nets[i];
-        if (!net) {
-            std::cerr << "updateGainsAfterMove: Error - found null net pointer for cell " 
-                     << movedCell->name << std::endl;
-            continue;
-        }
-
-        std::cout << "  Processing net " << net->name 
-                  << " [" << net->partitionCount[0] << ", " << net->partitionCount[1] << "]" << std::endl;
-
-        // Validate partition counts
-        int totalCells = net->partitionCount[0] + net->partitionCount[1];
-        if (totalCells != static_cast<int>(net->cells.size())) {
-            std::cerr << "updateGainsAfterMove: Error - partition count mismatch for net " << net->name 
-                     << ". Expected " << net->cells.size() << ", got " << totalCells << std::endl;
-            continue;
-        }
-
-        // For each cell on this net
-        for (Cell* cell : net->cells) {
-            if (!cell) {
-                std::cerr << "updateGainsAfterMove: Error - found null cell pointer in net " 
-                         << net->name << std::endl;
-                continue;
-            }
-
-            // Skip moved cell and locked cells
-            if (cell == movedCell || cell->locked) {
-                continue;
-            }
-
-            // Verify cell-net relationship
-            bool foundNet = false;
-            for (Net* cellNet : cell->nets) {
-                if (cellNet == net) {
-                    foundNet = true;
-                    break;
-                }
-            }
-            if (!foundNet) {
-                std::cerr << "updateGainsAfterMove: Error - inconsistent cell-net relationship between "
-                         << cell->name << " and " << net->name << std::endl;
-                continue;
-            }
-
-            std::cout << "    Updating gain for cell " << cell->name << std::endl;
-
-            // Store old gain for bucket update
-            int oldGain = cell->gain;
-            
-            // Calculate new gain
-            int newGain = calculateCellGain(cell);
-            
-            if (oldGain != newGain) {
-                std::cout << "      Gain changed from " << oldGain << " to " << newGain << std::endl;
-                
-                // Update cell's gain in gain bucket
-                try {
-                    cell->gain = newGain;  // Update cell's gain before updating bucket
-                    gainBucket_.updateCellGain(cell, oldGain, newGain);
-                } catch (const std::exception& e) {
-                    std::cerr << "updateGainsAfterMove: Error updating gain bucket - " 
-                             << e.what() << std::endl;
-                    // Revert gain change on failure
-                    cell->gain = oldGain;
-                }
-            }
-        }
-
-        // Verify partition counts haven't changed unexpectedly
-        if (net->partitionCount[0] + net->partitionCount[1] != totalCells) {
-            std::cerr << "updateGainsAfterMove: Error - partition counts changed unexpectedly for net " 
-                     << net->name << std::endl;
+    
+    // Update gains for all affected cells
+    for (Cell* cell : cellsToUpdate) {
+        int oldGain = cell->gain;
+        int newGain = calculateCellGain(cell);
+        
+        if (oldGain != newGain) {
+            gainBucket_.updateCellGain(cell, oldGain, newGain);
         }
     }
 }
@@ -520,102 +427,56 @@ void FMEngine::applyMove(Cell* cell, int toPartition) {
         return;
     }
 
-    std::cout << "Applying move for cell " << cell->name 
-              << " from partition " << cell->partition 
-              << " to partition " << toPartition << std::endl;
-
-    // Store old partition for gain updates
     int fromPartition = cell->partition;
-
-    // Validate move legality
-    if (toPartition < 0 || toPartition > 1) {
-        std::cerr << "applyMove: Error - invalid target partition " << toPartition << std::endl;
-        return;
-    }
-
     if (fromPartition == toPartition) {
-        std::cerr << "applyMove: Error - moving to same partition" << std::endl;
-        return;
+        return; // No change needed
     }
 
-    // Remove cell from gain bucket before updating its gain
+    // Calculate cutsize delta directly
+    int cutsizeDelta = -cell->gain; // Gain is the negative of cutsize change
+    
+    // Remove cell from gain bucket and lock it
     gainBucket_.removeCell(cell);
-
-    // Update partition counts for all nets connected to this cell
-    for (Net* net : cell->nets) {
-        if (!net) {
-            std::cerr << "applyMove: Error - found null net pointer for cell " << cell->name << std::endl;
-            continue;
-        }
-
-        // Store old partition counts for validation
-        int oldCount0 = net->partitionCount[0];
-        int oldCount1 = net->partitionCount[1];
-
-        // Validate current partition counts
-        if (oldCount0 < 0 || oldCount1 < 0) {
-            std::cerr << "applyMove: Error - negative partition count for net " << net->name 
-                     << " [" << oldCount0 << ", " << oldCount1 << "]" << std::endl;
-            continue;
-        }
-
-        // Update partition counts
-        net->partitionCount[fromPartition]--;
-        net->partitionCount[toPartition]++;
-
-        // Validate new partition counts
-        if (net->partitionCount[fromPartition] < 0) {
-            std::cerr << "applyMove: Error - negative partition count after move for net " << net->name 
-                     << " partition " << fromPartition << std::endl;
-            // Revert the change
-            net->partitionCount[fromPartition]++;
-            net->partitionCount[toPartition]--;
-            continue;
-        }
-
-        // Verify total cell count hasn't changed
-        int totalCount = net->partitionCount[0] + net->partitionCount[1];
-        if (totalCount != static_cast<int>(net->cells.size())) {
-            std::cerr << "applyMove: Error - partition count mismatch for net " << net->name 
-                     << ". Expected " << net->cells.size() 
-                     << ", got " << totalCount << std::endl;
-        }
-
-        // Update cut size based on net state change
-        bool wasCut = (oldCount0 > 0 && oldCount1 > 0);
-        bool isCut = (net->partitionCount[0] > 0 && net->partitionCount[1] > 0);
-        
-        if (wasCut && !isCut) {
-            partitionState_.updateCutSize(-1);
-            std::cout << "  Net " << net->name << " is no longer cut" << std::endl;
-        } else if (!wasCut && isCut) {
-            partitionState_.updateCutSize(1);
-            std::cout << "  Net " << net->name << " is now cut" << std::endl;
-        }
-
-        std::cout << "  Updated net " << net->name << " partition counts: [" 
-                  << net->partitionCount[0] << ", " << net->partitionCount[1] << "]" << std::endl;
-    }
-
+    cell->locked = true;
+    
     // Update partition sizes
     partitionState_.updatePartitionSize(fromPartition, -1);
     partitionState_.updatePartitionSize(toPartition, 1);
-
+    
+    // Update net partition counts
+    for (Net* net : cell->nets) {
+        if (!net) continue;
+        
+        // Decrement count in old partition
+        net->partitionCount[fromPartition]--;
+        // Increment count in new partition
+        net->partitionCount[toPartition]++;
+    }
+    
     // Update cell's partition
     cell->partition = toPartition;
-    cell->locked = true;
-
+    
+    // Update cutsize
+    partitionState_.updateCutSize(cutsizeDelta);
+    
     // Update gains of affected cells
     updateGainsAfterMove(cell);
-
-    std::cout << "Move completed. Current cut size: " << partitionState_.getCurrentCutSize() << std::endl;
 }
 
 int FMEngine::getMaxPossibleDegree() const {
+    // Find the cell with the maximum number of connected nets
     int maxDegree = 0;
+    
     for (const auto& cell : netlist_.getCells()) {
-        maxDegree = std::max(maxDegree, static_cast<int>(cell.nets.size()));
+        int degree = cell.nets.size();
+        maxDegree = std::max(maxDegree, degree);
     }
+    
+    // If empty netlist, return a minimum size
+    if (maxDegree == 0) {
+        return 10; // Default minimum size
+    }
+    
     return maxDegree;
 }
 
