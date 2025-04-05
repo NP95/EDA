@@ -98,9 +98,9 @@ void Circuit::writeResultsToFile(const std::string& filename) const {
     outFile << "Gate slacks:\n";
 
     std::vector<std::pair<int, Node>> sortedNetlist;
-     for(const auto& pair : netlist_){
-         sortedNetlist.push_back(pair);
-     }
+    for(const auto& pair : netlist_){
+        sortedNetlist.push_back(pair);
+    }
 
     std::sort(sortedNetlist.begin(), sortedNetlist.end(), [](const auto& a, const auto& b) {
         return a.first < b.first;
@@ -108,10 +108,12 @@ void Circuit::writeResultsToFile(const std::string& filename) const {
 
     for (const auto& [nodeID, node] : sortedNetlist) {
         std::string prefix;
-        if (node.isPrimaryInput()) {
+        // The order of these conditions is important
+        if (node.isPrimaryOutput()) {
+            // Primary outputs get "OUT-" prefix regardless of their gate type
+            prefix = "OUT-";
+        } else if (node.isPrimaryInput()) {
             prefix = (node.getNodeType() == "DFF_OUT" ? "DFF_OUT-" : "INP-");
-        } else if (node.getNodeType() == OUTPUT_NODE_TYPE) {
-             prefix = "OUT-"; // PO Marker
         } else if (node.getNodeType() == "DFF_IN") {
             prefix = "DFF_IN-"; // DFF Input Marker
         } else {
@@ -128,17 +130,19 @@ void Circuit::writeResultsToFile(const std::string& filename) const {
         try {
             const auto& node = netlist_.at(nodeID);
             std::string prefix;
-            if (node.isPrimaryInput()) {
+            // Also update the critical path labeling
+            if (node.isPrimaryOutput()) {
+                // Primary outputs get "OUT-" prefix in the critical path too
+                prefix = "OUT-";
+            } else if (node.isPrimaryInput()) {
                 prefix = (node.getNodeType() == "DFF_OUT" ? "DFF_OUT-" : "INP-");
             } else {
-                 // For gates on critical path, use their type
-                  prefix = node.getNodeType() + "-";
-             }
+                prefix = node.getNodeType() + "-";
+            }
             outFile << prefix << "n" << nodeID;
             if (i < criticalPath.size() - 1) outFile << ", ";
         } catch (const std::out_of_range& oor) {
             std::cerr << "Error: Node " << nodeID << " from critical path trace not found in netlist!" << std::endl;
-            // Potentially break or continue depending on desired robustness
         }
     }
     outFile << "\n";
@@ -251,85 +255,43 @@ void Circuit::parseLine(const std::string& line) {
 }
 
 
-// --- Instrumented calculateLoadCapacitance ---
-// --- CORRECTED Circuit::calculateLoadCapacitance ---
-// Applies PO Load based on FANOUT node type, per clarification.
 double Circuit::calculateLoadCapacitance(int nodeId) const {
-    std::ostringstream oss; // For formatting debug messages
-    oss << std::fixed << std::setprecision(4);
-
-    STA_TRACE("Enter calculateLoadCapacitance for Node " + std::to_string(nodeId));
-    // Get the node for which we are calculating the load it drives
     const Node& node = netlist_.at(nodeId);
-    double loadCap = 0.0; // Start with zero load
-    bool hasNonPOFanout = false; // Track if we have any non-PO fanouts
-
-    STA_TRACE("  Checking " + std::to_string(node.getFanOutList().size()) + " fanouts for load contribution...");
+    double loadCap = 0.0;
+    
+    // Only apply 4×INV rule if this node is a PO with no fanouts
+    if (node.getFanOutList().empty() && node.isPrimaryOutput()) {
+        double invCap = gateLib_.getGate(INV_GATE_NAME).getCapacitance();
+        loadCap = PRIMARY_OUTPUT_LOAD_FACTOR * invCap;
+        STA_TRACE("  Node " + std::to_string(nodeId) + " is a PO with no fanouts. Setting load = " + 
+                  std::to_string(loadCap) + " fF");
+        return loadCap;
+    }
+    
+    // For all other nodes, just sum input capacitances of fanout gates
     for (int fanOutNodeId : node.getFanOutList()) {
-        // Check existence before access
-        if (!netlist_.count(fanOutNodeId)) {
-            STA_WARN("  Fanout node " + std::to_string(fanOutNodeId) + " not found in netlist. Skipping its load contribution.");
+        const Node& fanOutNode = netlist_.at(fanOutNodeId);
+        
+        // Skip special nodes like INPUT markers
+        if (fanOutNode.isPrimaryInput() || 
+            fanOutNode.getNodeType() == INPUT_NODE_TYPE ||
+            fanOutNode.getNodeType() == OUTPUT_NODE_TYPE) {
             continue;
         }
-        const Node& fanOutNode = netlist_.at(fanOutNodeId);
-
-        // First check if it's a regular gate (not a PO or PI)
-        if (!fanOutNode.isPrimaryOutput() && !fanOutNode.isPrimaryInput() &&
-            fanOutNode.getNodeType() != OUTPUT_NODE_TYPE && 
-            fanOutNode.getNodeType() != INPUT_NODE_TYPE) {
-            
-            hasNonPOFanout = true; // This is a regular gate fanout
-            
-            if (gateLib_.hasGate(fanOutNode.getNodeType())) {
-                double gateCap = gateLib_.getGate(fanOutNode.getNodeType()).getCapacitance();
-                loadCap += gateCap;
-                oss << "    Adding gate input cap from fanout Node " << fanOutNodeId 
-                    << " (" << fanOutNode.getNodeType() << "): " << gateCap 
-                    << " fF. Total now: " << loadCap << " fF";
-                STA_TRACE(oss.str()); oss.str("");
-            } else {
-                STA_TRACE("    Skipping cap from fanout Node " + std::to_string(fanOutNodeId) + 
-                          " (Type '" + fanOutNode.getNodeType() + "' not in library or not a gate).");
-            }
-        } else if (fanOutNode.isPrimaryOutput()) {
-            // Just track PO fanouts but don't add special load yet
-            STA_TRACE("    Fanout Node " + std::to_string(fanOutNodeId) + " is Primary Output/DFF_IN.");
-        } else {
-            STA_TRACE("    Skipping cap from fanout Node " + std::to_string(fanOutNodeId) + 
-                      " (Type: " + fanOutNode.getNodeType() + " - PI/DFF Boundary or PO marker).");
+        
+        // Add input capacitance for this fanout gate
+        if (gateLib_.hasGate(fanOutNode.getNodeType())) {
+            double gateCap = gateLib_.getGate(fanOutNode.getNodeType()).getCapacitance();
+            loadCap += gateCap;
+            STA_TRACE("  Adding input cap from fanout Node " + std::to_string(fanOutNodeId) + 
+                     " (" + fanOutNode.getNodeType() + "): " + std::to_string(gateCap) + " fF");
         }
     }
-
-    // After checking all fanouts, determine if we should use special PO load rule
-    if (!node.getFanOutList().empty()) {
-        if (!hasNonPOFanout) { // Only PO fanouts or no valid fanouts at all
-            // Apply the special PO load rule - this node is "the final stage of gates"
-            if (gateLib_.hasGate(INV_GATE_NAME)) {
-                double invCap = gateLib_.getGate(INV_GATE_NAME).getCapacitance();
-                loadCap = PRIMARY_OUTPUT_LOAD_FACTOR * invCap; // Replace previous calculation
-                oss << "    All fanouts are POs - applying special PO load rule: " 
-                    << loadCap << " fF (4 × INV cap " << invCap << ")";
-                STA_TRACE(oss.str()); oss.str("");
-            }
-        }
-    } else if (node.isPrimaryOutput()) { // This is a PO node with no fanouts
-        if (gateLib_.hasGate(INV_GATE_NAME)) {
-            double invCap = gateLib_.getGate(INV_GATE_NAME).getCapacitance();
-            loadCap = PRIMARY_OUTPUT_LOAD_FACTOR * invCap;
-            oss << "  Node " << nodeId << " is a PO with no fanouts. Setting load = " << loadCap 
-                << " fF (4 × INV cap " << invCap << ")";
-            STA_TRACE(oss.str()); oss.str("");
-        }
-    } else {
-        // This is genuinely a "dead node" with no significance
-        STA_TRACE("  Node " + std::to_string(nodeId) + " has no fanouts (dead node). Load = 0.0 fF.");
-    }
-
-    oss << "Exit calculateLoadCapacitance for Node " << nodeId << ". Result = " << loadCap << " fF";
-    STA_DETAIL(oss.str()); // Use DETAIL level for final result
+    
+    STA_DETAIL("Exit calculateLoadCapacitance for Node " + std::to_string(nodeId) + 
+              ". Result = " + std::to_string(loadCap) + " fF");
     return loadCap;
 }
-
 void Circuit::performTopologicalSort() {
      topologicalOrder_.clear();
     std::unordered_map<int, int> inDegree;
