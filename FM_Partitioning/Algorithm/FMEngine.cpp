@@ -127,24 +127,113 @@ void FMEngine::initializePartitions() {
             
             // Verify bidirectional relationship
             bool found = false;
-            for (Cell* netCell : net->cells) {
-                if (netCell == &cell) {
-                    found = true;
-                    break;
+            try {
+                for (Cell* netCell : net->cells) {
+                    if (netCell == &cell) {
+                        found = true;
+                        break;
+                    }
                 }
+            } catch (const std::exception& e) {
+                std::cerr << "Error: Exception while checking cell-net relationship for " 
+                         << cell.name << ": " << e.what() << std::endl;
+                continue; // Skip this net
+            } catch (...) {
+                std::cerr << "Error: Unknown exception while checking cell-net relationship for " 
+                         << cell.name << std::endl;
+                continue; // Skip this net
             }
             
             if (!found) {
-                std::cerr << "Error: Cell " << cell.name << " references net " << net->name 
+                // Net references cell, but cell is not in net's list
+                std::cerr << "Error: Cell " << cell.name << " references net (pointer: " << net << ")"
                          << " but is not in net's cell list" << std::endl;
+                
+                // Instead of just skipping this net, try to fix the relationship if possible
+                try {
+                    // Add the cell to the net's cell list to fix the bidirectional relationship
+                    std::cout << "  Attempting to fix relationship by adding cell to net's list..." << std::endl;
+                    net->cells.push_back(&cell);
+                    validNets.push_back(net);
+                    std::cout << "  Relationship fixed successfully" << std::endl;
+                } catch (const std::exception& e) {
+                    std::cerr << "  Failed to fix relationship: " << e.what() << std::endl;
+                    continue; // Skip this net
+                } catch (...) {
+                    std::cerr << "  Failed to fix relationship due to unknown error" << std::endl;
+                    continue; // Skip this net
+                }
+            } else {
+                // Valid bidirectional relationship
+                validNets.push_back(net);
+            }
+        }
+        
+        // Replace cell's nets with the valid ones
+        std::cout << "  Cell " << cell.name << " has " << cell.nets.size() 
+                 << " nets, " << validNets.size() << " valid" << std::endl;
+        cell.nets = validNets;
+    }
+    
+    // Now validate net-cell relationships to ensure consistency
+    std::cout << "Validating net-cell relationships..." << std::endl;
+    for (auto& net : netlist_.getNets()) {
+        std::cout << "Checking net " << net.name << std::endl;
+        std::vector<Cell*> validCells;
+        for (Cell* cell : net.cells) {
+            if (!cell) {
+                std::cerr << "Error: Net " << net.name << " has null cell pointer" << std::endl;
                 continue;
             }
             
-            validNets.push_back(net);
+            // Verify bidirectional relationship
+            bool found = false;
+            try {
+                for (Net* cellNet : cell->nets) {
+                    if (cellNet == &net) {
+                        found = true;
+                        break;
+                    }
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Error: Exception while checking net-cell relationship for " 
+                         << net.name << ": " << e.what() << std::endl;
+                continue; // Skip this cell
+            } catch (...) {
+                std::cerr << "Error: Unknown exception while checking net-cell relationship for " 
+                         << net.name << std::endl;
+                continue; // Skip this cell
+            }
+            
+            if (!found) {
+                // Cell references net, but net is not in cell's list
+                std::cerr << "Error: Net " << net.name << " references cell " << cell->name 
+                         << " but is not in cell's net list" << std::endl;
+                
+                // Try to fix the relationship if possible
+                try {
+                    // Add the net to the cell's net list to fix the bidirectional relationship
+                    std::cout << "  Attempting to fix relationship by adding net to cell's list..." << std::endl;
+                    cell->nets.push_back(&net);
+                    validCells.push_back(cell);
+                    std::cout << "  Relationship fixed successfully" << std::endl;
+                } catch (const std::exception& e) {
+                    std::cerr << "  Failed to fix relationship: " << e.what() << std::endl;
+                    continue; // Skip this cell
+                } catch (...) {
+                    std::cerr << "  Failed to fix relationship due to unknown error" << std::endl;
+                    continue; // Skip this cell
+                }
+            } else {
+                // Valid bidirectional relationship
+                validCells.push_back(cell);
+            }
         }
         
-        // Update cell's nets to only include valid ones
-        cell.nets = validNets;
+        // Replace net's cells with the valid ones
+        std::cout << "  Net " << net.name << " has " << net.cells.size() 
+                 << " cells, " << validCells.size() << " valid" << std::endl;
+        net.cells = validCells;
     }
 
     // Use current time as random seed
