@@ -16,14 +16,14 @@ struct Cell {
     int partition = 0;          // e.g., 0 for G1, 1 for G2
     int gain = 0;
     bool locked = false;
-    std::vector<Net*> nets;     // Pointers to connected nets
+    std::vector<int> netIds;    // IDs of connected nets
     BucketNode* bucketNodePtr = nullptr; // Pointer to node in GainBucket's linked list
 };
 
 struct Net {
     std::string name;
     int id;                     // Unique integer ID
-    std::vector<Cell*> cells;   // Pointers to connected cells
+    std::vector<int> cellIds;   // IDs of connected cells
     int partitionCount[2] = {0, 0}; // Count of cells in G1 (index 0) and G2 (index 1)
 };
 
@@ -37,12 +37,14 @@ public:
     void addCell(const std::string& name);
     Cell* getCellByName(const std::string& name);
     Cell* getCellById(int id);
+    const Cell* getCellById(int id) const;
 
     // Net management
     void addNet(const std::string& name);
     void addCellToNet(const std::string& netName, const std::string& cellName);
     Net* getNetByName(const std::string& name);
     Net* getNetById(int id);
+    const Net* getNetById(int id) const;
 
     // Accessors
     const std::vector<Cell>& getCells() const { return cells_; }

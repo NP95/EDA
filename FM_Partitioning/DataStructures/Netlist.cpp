@@ -38,6 +38,14 @@ Cell* Netlist::getCellById(int id) {
     return &cells_[id];
 }
 
+// Const version of getCellById
+const Cell* Netlist::getCellById(int id) const {
+    if (id < 0 || id >= static_cast<int>(cells_.size())) {
+        return nullptr;
+    }
+    return &cells_[id]; // Return const pointer
+}
+
 void Netlist::addNet(const std::string& name) {
     std::cout << "Adding net: " << name << std::endl;
     // Check if net already exists
@@ -70,50 +78,49 @@ void Netlist::addCellToNet(const std::string& netName, const std::string& cellNa
     }
 
     // Check if relationship already exists
-    bool netHasCell = false;
-    for (Cell* existingCell : net->cells) {
-        if (existingCell == cell) {
-            netHasCell = true;
+    // Using IDs now
+    int netId = net->id;
+    int cellId = cell->id;
+
+    bool cellHasNetId = false;
+    for (int existingNetId : cell->netIds) {
+        if (existingNetId == netId) {
+            cellHasNetId = true;
             break;
         }
     }
 
-    bool cellHasNet = false;
-    for (Net* existingNet : cell->nets) {
-        if (existingNet == net) {
-            cellHasNet = true;
+    bool netHasCellId = false;
+    for (int existingCellId : net->cellIds) {
+        if (existingCellId == cellId) {
+            netHasCellId = true;
             break;
         }
     }
 
     // If either relationship exists, ensure both exist
-    if (netHasCell || cellHasNet) {
-        if (!netHasCell) {
-            net->cells.push_back(cell);
-            net->partitionCount[cell->partition]++;
+    if (netHasCellId || cellHasNetId) {
+        if (!netHasCellId) {
+            net->cellIds.push_back(cellId);   // Store cell ID
+            // Partition count updates deferred
         }
-        if (!cellHasNet) {
-            cell->nets.push_back(net);
+        if (!cellHasNetId) {
+            cell->netIds.push_back(netId);   // Store net ID
         }
-        std::cout << "  Connection already existed, ensured consistency" << std::endl;
-        std::cout << "  Net now has " << net->cells.size() << " cells" << std::endl;
-        std::cout << "  Cell now has " << cell->nets.size() << " nets" << std::endl;
-        std::cout << "  Net partition counts: [" << net->partitionCount[0] << ", " 
-                  << net->partitionCount[1] << "]" << std::endl;
+        std::cout << "  Connection already existed or added, ensured consistency" << std::endl;
+        std::cout << "  Net now has " << net->cellIds.size() << " cell IDs" << std::endl;
+        std::cout << "  Cell now has " << cell->netIds.size() << " net IDs" << std::endl;
         return;
     }
 
     // Add new bidirectional connections
-    net->cells.push_back(cell);
-    cell->nets.push_back(net);
+    net->cellIds.push_back(cellId);   // Store cell ID
+    cell->netIds.push_back(netId);   // Store net ID
 
-    // Update partition count for the net
-    net->partitionCount[cell->partition]++;
+    // Partition count updates deferred
     
-    std::cout << "  Connection added. Net now has " << net->cells.size() << " cells" << std::endl;
-    std::cout << "  Cell now has " << cell->nets.size() << " nets" << std::endl;
-    std::cout << "  Net partition counts: [" << net->partitionCount[0] << ", " 
-              << net->partitionCount[1] << "]" << std::endl;
+    std::cout << "  Connection added. Net now has " << net->cellIds.size() << " cell IDs" << std::endl;
+    std::cout << "  Cell now has " << cell->netIds.size() << " net IDs" << std::endl;
 }
 
 Net* Netlist::getNetByName(const std::string& name) {
@@ -129,6 +136,15 @@ Net* Netlist::getNetById(int id) {
         return nullptr;
     }
     return &nets_[id];
+}
+
+// Const version of getNetById
+const Net* Netlist::getNetById(int id) const {
+    if (id < 0 || id >= static_cast<int>(nets_.size())) {
+        return nullptr;
+    }
+    // Ensure we return a const pointer when accessing via const reference
+    return &nets_[id]; 
 }
 
 } // namespace fm 

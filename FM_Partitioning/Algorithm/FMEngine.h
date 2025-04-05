@@ -40,7 +40,7 @@ private:
     void calculateInitialGains();
     void updateGainsAfterMove(Cell* movedCell);
     int calculateCellGain(Cell* cell) const;
-    void revertMovesToBestState(int bestMoveIndex);
+    void revertMovesToBestState(int bestMoveIndex, int initialCutSize);
     void applyMove(Cell* cell, int toPartition);
     void undoMove(const Move& move);
     

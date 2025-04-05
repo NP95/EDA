@@ -17,17 +17,6 @@ bool PartitionState::isBalanced(int partition1Size, int partition2Size) const {
            partition2Size <= maxPartitionSize;
 }
 
-void PartitionState::updateCutSize(int delta) {
-    currentCutsize += delta;
-}
-
-void PartitionState::updatePartitionSize(int partition, int delta) {
-    if (partition < 0 || partition > 1) {
-        throw std::runtime_error("Invalid partition index");
-    }
-    partitionSize[partition] += delta;
-}
-
 void PartitionState::calculateBalanceLimits() {
     // Calculate minimum and maximum partition sizes based on balance factor
     // For n cells and balance factor r:
@@ -36,6 +25,10 @@ void PartitionState::calculateBalanceLimits() {
     double halfSize = totalCells / 2.0;
     minPartitionSize = static_cast<int>(std::ceil(halfSize * (1.0 - balanceFactor)));
     maxPartitionSize = static_cast<int>(std::floor(halfSize * (1.0 + balanceFactor)));
+}
+
+void PartitionState::setCurrentCutSize(int cutSize) {
+    currentCutsize_ = cutSize;
 }
 
 } // namespace fm 

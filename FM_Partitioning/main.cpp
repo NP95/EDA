@@ -50,7 +50,8 @@ bool validatePhase1(const Netlist& netlist, const PartitionState& partitionState
     
     // First collect all relationships
     for (const auto& cell : netlist.getCells()) {
-        for (const Net* net : cell.nets) {
+        for (int netId : cell.netIds) {
+            const Net* net = netlist.getNetById(netId);
             if (net) {
                 cellToNets[cell.name].insert(net->name);
             }
@@ -58,7 +59,8 @@ bool validatePhase1(const Netlist& netlist, const PartitionState& partitionState
     }
     
     for (const auto& net : nets) {
-        for (const Cell* cell : net.cells) {
+        for (int cellId : net.cellIds) {
+            const Cell* cell = netlist.getCellById(cellId);
             if (cell) {
                 netToCells[net.name].insert(cell->name);
             }
@@ -100,7 +102,7 @@ bool validatePhase1(const Netlist& netlist, const PartitionState& partitionState
     double avgConnections = 0.0;
     
     for (const auto& cell : netlist.getCells()) {
-        int connections = cell.nets.size();
+        int connections = cell.netIds.size();
         minConnections = std::min(minConnections, connections);
         maxConnections = std::max(maxConnections, connections);
         avgConnections += connections;
@@ -156,7 +158,8 @@ bool validatePhase1(const Netlist& netlist, const PartitionState& partitionState
         int actualPartition0Count = 0;
         int actualPartition1Count = 0;
         
-        for (const Cell* cell : net.cells) {
+        for (int cellId : net.cellIds) {
+            const Cell* cell = netlist.getCellById(cellId);
             if (cell) {
                 if (cell->partition == 0) actualPartition0Count++;
                 else if (cell->partition == 1) actualPartition1Count++;
