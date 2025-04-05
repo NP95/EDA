@@ -38,10 +38,11 @@ private:
     
     // Helper methods
     void calculateInitialGains();
-    void updateGainsAfterMove(Cell* movedCell, int fromPartition);
+    void updateGainsAfterMove(Cell* movedCell);
     int calculateCellGain(Cell* cell) const;
     void revertMovesToBestState(int bestMoveIndex);
     void applyMove(Cell* cell, int toPartition);
+    void undoMove(const Move& move);
     
     // Utility methods
     int getMaxPossibleDegree() const;

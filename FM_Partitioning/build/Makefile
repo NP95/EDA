@@ -129,6 +129,110 @@ fm/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/fm.dir/build.make CMakeFiles/fm.dir/build
 .PHONY : fm/fast
 
+#=============================================================================
+# Target rules for targets named run0
+
+# Build rule for target.
+run0: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run0
+.PHONY : run0
+
+# fast build rule for target.
+run0/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run0.dir/build.make CMakeFiles/run0.dir/build
+.PHONY : run0/fast
+
+#=============================================================================
+# Target rules for targets named run1
+
+# Build rule for target.
+run1: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run1
+.PHONY : run1
+
+# fast build rule for target.
+run1/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run1.dir/build.make CMakeFiles/run1.dir/build
+.PHONY : run1/fast
+
+#=============================================================================
+# Target rules for targets named run2
+
+# Build rule for target.
+run2: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run2
+.PHONY : run2
+
+# fast build rule for target.
+run2/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run2.dir/build.make CMakeFiles/run2.dir/build
+.PHONY : run2/fast
+
+#=============================================================================
+# Target rules for targets named run3
+
+# Build rule for target.
+run3: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run3
+.PHONY : run3
+
+# fast build rule for target.
+run3/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run3.dir/build.make CMakeFiles/run3.dir/build
+.PHONY : run3/fast
+
+#=============================================================================
+# Target rules for targets named run4
+
+# Build rule for target.
+run4: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run4
+.PHONY : run4
+
+# fast build rule for target.
+run4/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run4.dir/build.make CMakeFiles/run4.dir/build
+.PHONY : run4/fast
+
+#=============================================================================
+# Target rules for targets named run5
+
+# Build rule for target.
+run5: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run5
+.PHONY : run5
+
+# fast build rule for target.
+run5/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run5.dir/build.make CMakeFiles/run5.dir/build
+.PHONY : run5/fast
+
+#=============================================================================
+# Target rules for targets named run6
+
+# Build rule for target.
+run6: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run6
+.PHONY : run6
+
+# fast build rule for target.
+run6/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run6.dir/build.make CMakeFiles/run6.dir/build
+.PHONY : run6/fast
+
+#=============================================================================
+# Target rules for targets named run-all
+
+# Build rule for target.
+run-all: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run-all
+.PHONY : run-all
+
+# fast build rule for target.
+run-all/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run-all.dir/build.make CMakeFiles/run-all.dir/build
+.PHONY : run-all/fast
+
 Algorithm/FMEngine.o: Algorithm/FMEngine.cpp.o
 .PHONY : Algorithm/FMEngine.o
 
@@ -305,6 +409,14 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
+	@echo "... run-all"
+	@echo "... run0"
+	@echo "... run1"
+	@echo "... run2"
+	@echo "... run3"
+	@echo "... run4"
+	@echo "... run5"
+	@echo "... run6"
 	@echo "... fm"
 	@echo "... Algorithm/FMEngine.o"
 	@echo "... Algorithm/FMEngine.i"
