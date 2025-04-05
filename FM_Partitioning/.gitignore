@@ -2,4 +2,11 @@
 build/
 
 # Ignore generated output files (optional, but good practice)
-output_pa1_*.txt 
+output_pa1_*.txt
+
+# Build artifacts
+build_debug/
+outputs/
+
+# Log files
+*.log 

@@ -40,8 +40,8 @@ void FMEngine::run() {
             break;
         }
 
-        // Run the pass
-        improved = runPass();
+        // Run the pass, passing the current pass number
+        improved = runPass(passCount);
         int currentCutSize = partitionState_.getCurrentCutSize();
         
         std::cout << "Pass " << passCount << " completed. "
@@ -186,24 +186,23 @@ void FMEngine::initializePartitions() {
     std::cout << "FMEngine initialization completed." << std::endl;
 }
 
-bool FMEngine::runPass() {
-    std::cout << "Starting runPass..." << std::endl;
+bool FMEngine::runPass(int passCount) {
+    // std::cout << "Starting runPass..." << std::endl; // Reduced logging
     const std::vector<Cell>& cells = netlist_.getCells();
     int numCells = cells.size();
     moveHistory_.clear();
     int initialCutSize = partitionState_.getCurrentCutSize(); // Store initial cutsize
-    
-    std::cout << "Initial state - Cut size: " << initialCutSize 
-              << ", Partition sizes: [" << partitionState_.getPartitionSize(0) 
-              << ", " << partitionState_.getPartitionSize(1) << "]" << std::endl;
-    
+
+    // std::cout << "Initial state - Cut size: " << initialCutSize \n    //           << ", Partition sizes: [" << partitionState_.getPartitionSize(0) \n    //           << ", " << partitionState_.getPartitionSize(1) << "]" << std::endl; // Reduced logging
+
     // Unlock all cells and verify gain bucket state
-    std::cout << "Unlocking cells and verifying gain bucket..." << std::endl;
+    // std::cout << "Unlocking cells and verifying gain bucket..." << std::endl; // Reduced logging
     for (auto& cell : const_cast<std::vector<Cell>&>(cells)) {
         cell.locked = false;
         // Verify cell's gain matches its position in gain bucket
         if (cell.bucketNodePtr && cell.bucketNodePtr->cellPtr != &cell) {
-            std::cerr << "Error: Cell " << cell.name << " has inconsistent bucket node pointer" << std::endl;
+            // This check might still be useful, but let's silence it for perf
+            // std::cerr << "Error: Cell " << cell.name << " has inconsistent bucket node pointer" << std::endl;
             gainBucket_.removeCell(&cell);
             gainBucket_.addCell(&cell);
         }
@@ -212,38 +211,45 @@ bool FMEngine::runPass() {
     int bestCutSize = partitionState_.getCurrentCutSize();
     int bestMoveIndex = -1;
     int movesWithoutImprovement = 0;
-    const int MAX_MOVES_WITHOUT_IMPROVEMENT = numCells / 2;  // Limit unproductive moves
-    
+
+    // --- Adaptive Threshold Calculation --- START
+    const int START_THRESHOLD = 2000;
+    const int MIN_THRESHOLD = 500;
+    const int DECREASE_PER_PASS = 100;
+    int adaptiveThreshold = std::max(MIN_THRESHOLD, START_THRESHOLD - (passCount - 1) * DECREASE_PER_PASS);
+    // const int MAX_MOVES_WITHOUT_IMPROVEMENT = 1000; // Limit unproductive moves - OLD FIXED
+    const int MAX_MOVES_WITHOUT_IMPROVEMENT = adaptiveThreshold; // NEW ADAPTIVE
+    // --- Adaptive Threshold Calculation --- END
+
     // Track moved cells to prevent infinite loops
     std::unordered_set<Cell*> movedCells;
-    
-    std::cout << "Starting moves loop..." << std::endl;
+
+    // std::cout << "Starting moves loop..." << std::endl; // Reduced logging
     // Make moves until we can't improve or reach all cells
     for (int i = 0; i < numCells && movesWithoutImprovement < MAX_MOVES_WITHOUT_IMPROVEMENT; i++) {
-        std::cout << "\nMove " << i + 1 << " of " << numCells << std::endl;
-        std::cout << "Current cut size: " << partitionState_.getCurrentCutSize() << std::endl;
-        
+        // std::cout << "\nMove " << i + 1 << " of " << numCells << std::endl; // Reduced logging
+        // std::cout << "Current cut size: " << partitionState_.getCurrentCutSize() << std::endl; // Reduced logging
+
         // Get highest gain cell that maintains balance
         Cell* cell = gainBucket_.getBestFeasibleCell(partitionState_);
         if (!cell) {
-            std::cout << "No feasible cell found, breaking..." << std::endl;
+            // std::cout << "No feasible cell found, breaking..." << std::endl; // Reduced logging
             break;
         }
 
         // Check if cell was already moved
         if (movedCells.find(cell) != movedCells.end()) {
-            std::cout << "Cell " << cell->name << " was already moved in this pass, breaking..." << std::endl;
+            // std::cout << "Cell " << cell->name << " was already moved in this pass, breaking..." << std::endl; // Reduced logging
             break;
         }
 
         // Validate selected cell
         if (cell->locked) {
-            std::cerr << "Error: Selected locked cell " << cell->name << std::endl;
+            std::cerr << "Error: Selected locked cell " << cell->name << std::endl; // Keep critical errors
             break;
         }
 
-        std::cout << "Selected cell " << cell->name << " with gain " << cell->gain 
-                  << " from partition " << cell->partition << std::endl;
+        // std::cout << "Selected cell " << cell->name << " with gain " << cell->gain \n        //           << " from partition " << cell->partition << std::endl; // Reduced logging
 
         // Record move
         Move move;
@@ -251,70 +257,63 @@ bool FMEngine::runPass() {
         move.fromPartition = cell->partition;
         move.toPartition = 1 - cell->partition;
         move.gain = cell->gain;
-        
+
         // Verify move legality
         if (!isMoveLegal(cell, move.toPartition)) {
-            std::cerr << "Error: Illegal move detected for cell " << cell->name << std::endl;
+            std::cerr << "Error: Illegal move detected for cell " << cell->name << std::endl; // Keep critical errors
             break;
         }
-        
+
         // Apply move
-        std::cout << "Applying move..." << std::endl;
+        // std::cout << "Applying move..." << std::endl; // Reduced logging
         applyMove(cell, move.toPartition);
         move.resultingCutSize = partitionState_.getCurrentCutSize();
         moveHistory_.push_back(move);
         movedCells.insert(cell);  // Track that this cell was moved
 
-        std::cout << "Move completed. New cut size: " << move.resultingCutSize 
-                  << ", Partition sizes: [" << partitionState_.getPartitionSize(0) 
-                  << ", " << partitionState_.getPartitionSize(1) << "]" << std::endl;
+        // std::cout << "Move completed. New cut size: " << move.resultingCutSize \n        //           << ", Partition sizes: [" << partitionState_.getPartitionSize(0) \n        //           << ", " << partitionState_.getPartitionSize(1) << "]" << std::endl; // Reduced logging
 
         // Update best solution if improved
         if (move.resultingCutSize < bestCutSize) {
             bestCutSize = move.resultingCutSize;
             bestMoveIndex = i;
             movesWithoutImprovement = 0;
-            std::cout << "New best solution found at move " << i 
-                      << " with cut size " << bestCutSize << std::endl;
+            // std::cout << "New best solution found at move " << i \n            //           << " with cut size " << bestCutSize << std::endl; // Reduced logging
         } else {
             movesWithoutImprovement++;
-            std::cout << "No improvement for " << movesWithoutImprovement 
-                      << " moves" << std::endl;
+            // std::cout << "No improvement for " << movesWithoutImprovement \n            //           << " moves" << std::endl; // Reduced logging
         }
 
         // Verify partition balance after move
-        if (!partitionState_.isBalanced(partitionState_.getPartitionSize(0), 
+        if (!partitionState_.isBalanced(partitionState_.getPartitionSize(0),
                                       partitionState_.getPartitionSize(1))) {
-            std::cerr << "Error: Unbalanced partitions after move" << std::endl;
+            std::cerr << "Error: Unbalanced partitions after move" << std::endl; // Keep critical errors
             break;
         }
 
         // Verify all cells in gain bucket are unlocked
+        // This check might be slow, consider removing if confident
+        /*
         bool foundLockedCell = false;
         for (const auto& c : cells) {
             if (c.locked && c.bucketNodePtr != nullptr) {
-                std::cerr << "Error: Locked cell " << c.name << " found in gain bucket" << std::endl;
+                std::cerr << "Error: Locked cell " << c.name << " found in gain bucket" << std::endl; // Keep critical errors
                 foundLockedCell = true;
             }
         }
         if (foundLockedCell) {
             break;
         }
+        */
     }
 
-    std::cout << "\nMoves completed. Best move index: " << bestMoveIndex << std::endl;
+    // std::cout << "\nMoves completed. Best move index: " << bestMoveIndex << std::endl; // Reduced logging
 
     // Revert moves based on the best state found
     revertMovesToBestState(bestMoveIndex, initialCutSize); // Pass initial cutsize
 
-    // Return true if an improvement was potentially found and kept (even if the final cutsize isn't lower than initial)
-    // The outer loop checks for actual improvement pass-over-pass.
-    // A successful pass means we found a minimum *during* the pass, even if it's higher than the start.
-    // But standard FM usually means return true only if bestCutSize < initialCutSize.
-    // Let's stick to: return true if we found a better state *during* the pass.
+    // Return true if an improvement was potentially found and kept
     return bestMoveIndex >= 0 && bestCutSize < initialCutSize;
-    // If we revert all moves (bestMoveIndex == -1), return false.
-    // If the best cutsize found wasn't strictly better than initial, return false.
 }
 
 void FMEngine::calculateInitialGains() {
@@ -417,13 +416,10 @@ void FMEngine::revertMovesToBestState(int bestMoveIndex, int initialCutSize) {
         std::cout << "All moves reverted. Cut size reset to initial pass value: " << initialCutSize << std::endl;
     }
 
-    // Restore the cut size to the best one found during the pass IF we didn't revert all moves
-    if (bestMoveIndex >= 0 && bestMoveIndex < static_cast<int>(moveHistory_.size())) {
-         partitionState_.setCurrentCutSize(moveHistory_[bestMoveIndex].resultingCutSize);
-         std::cout << "Cut size set to best found during pass: " << moveHistory_[bestMoveIndex].resultingCutSize << std::endl;
-    } else if (bestMoveIndex == -1) {
-         // Already handled setting cutsize to initialCutSize above
-    }
+    // Recalculate the cut size based on the current state after reverts
+    int finalCutSize = calculateCurrentCutSize();
+    partitionState_.setCurrentCutSize(finalCutSize);
+    std::cout << "Cut size recalculated after reverts: " << finalCutSize << std::endl;
 
     // Recalculate all gains and rebuild bucket for consistency after reverting?
     // Maybe not necessary if undoMove handles gains correctly. But could be a safeguard.
@@ -517,11 +513,17 @@ void FMEngine::undoMove(const Move& move) {
     int movedToPartition = move.toPartition;
     std::cout << "    Undoing move of cell " << cell->name << " from " << movedToPartition << " to " << originalPartition << std::endl;
 
-    // Update partition sizes (reverse of applyMove)
+    // 1. Calculate the cutsize change to undo.
+    //    The original move changed cutsize by -move.gain (where move.gain was the gain *before* the move).
+    //    To reverse this, we add +move.gain.
+    int cutsizeDeltaUndo = move.gain;
+
+    // 2. Update partition sizes (reverse of applyMove)
     partitionState_.updatePartitionSize(movedToPartition, -1);
     partitionState_.updatePartitionSize(originalPartition, 1);
 
-    // Update net partition counts (reverse of applyMove)
+    // 3. Update net partition counts (reverse of applyMove)
+    //    Do this BEFORE changing cell->partition
     for (int netId : cell->netIds) {
         Net* net = netlist_.getNetById(netId);
         if (!net) continue;
@@ -529,22 +531,37 @@ void FMEngine::undoMove(const Move& move) {
         net->partitionCount[originalPartition]++;
     }
 
-    // Restore cell's partition
+    // 4. Restore cell's partition
     cell->partition = originalPartition;
     
-    // Unlock the cell
+    // 5. Unlock the cell
     cell->locked = false;
 
-    // Update gains of neighbors (using the same function as applyMove)
-    // This recalculates gains based on the reverted state
+    // 6. Update gains of neighbors based on the now reverted state of 'cell' and nets
+    //    Neighbors' gains might change due to 'cell' moving back
     updateGainsAfterMove(cell);
 
-    // Re-insert cell into gain bucket if it's not locked (which it shouldn't be now)
-    // Calculate gain before inserting
-    cell->gain = calculateCellGain(cell);
-    if (!cell->locked) {
-        gainBucket_.addCell(cell); 
+    // 7. Recalculate the gain of the moved cell itself in its original partition
+    int currentGain = calculateCellGain(cell); 
+    cell->gain = currentGain;
+
+    // 8. Add the cell back to the gain bucket with its recalculated gain
+    gainBucket_.addCell(cell); 
+
+    // 9. Apply the cutsize reversal *after* state is restored
+    partitionState_.updateCutSize(cutsizeDeltaUndo); 
+    
+    std::cout << "    Undo complete. Cut size after undo: " << partitionState_.getCurrentCutSize() << std::endl;
+}
+
+int FMEngine::calculateCurrentCutSize() const {
+    int currentCutSize = 0;
+    for (const auto& net : netlist_.getNets()) {
+        if (net.partitionCount[0] > 0 && net.partitionCount[1] > 0) {
+            currentCutSize++;
+        }
     }
+    return currentCutSize;
 }
 
 } // namespace fm 

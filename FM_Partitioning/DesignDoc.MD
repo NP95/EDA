@@ -88,7 +88,7 @@ struct Cell {
     int partition = 0;          // e.g., 0 for G1, 1 for G2
     int gain = 0;
     bool locked = false;
-    std::vector<Net*> nets;     // Pointers to connected nets
+    std::vector<int> netIds;    // IDs of connected nets (NEW - resolved memory issues)
     BucketNode* bucketNodePtr = nullptr; // Pointer to node in GainBucket's linked list
     // Potentially add temporary gain storage if needed during updates
 };
@@ -101,7 +101,7 @@ struct Cell; // Forward declaration
 struct Net {
     std::string name;
     int id;                     // Unique integer ID
-    std::vector<Cell*> cells;   // Pointers to connected cells
+    std::vector<int> cellIds;   // IDs of connected cells (NEW - resolved memory issues)
     int partitionCount[2] = {0, 0}; // Count of cells in G1 (index 0) and G2 (index 1)
 };
 ```
@@ -176,63 +176,11 @@ struct BucketNode {
            - Recalculate `neighborCell`'s gain based on the new state of its connected nets.
            - `GainBucket::updateCellGain(neighborCell, oldGain, newGain)`.
      - Store the `currentCutsize` and the number of moves made so far.
-4. After the loop, find the point (number of moves) in the recorded sequence that yielded the minimum `currentCutsize`.
-5. 
-### 7.3. Memory
-Avoid excessive copying. Use pointers and references where appropriate. Pre-allocate vectors if sizes are known (`cells_`, `nets_`).
-
-### 7.4. Compiler Optimization
-Compile with `-O2` or `-O3` on the target Linux server (twhuang-server-01.ece.utah.edu). [cite: User Prompt: F-M Circuit Partitioning Assignment]
-
-### 7.5. Language Choice
-C++ is recommended for performance. [cite: User Prompt: F-M Circuit Partitioning Assignment]
-
-## 8. Key Implementation Insights (Summary)
-
-- **Gain Bucket**: The central data structure; its efficiency dictates overall performance. Doubly-linked lists indexed by gain are standard.
-- **Gain Calculation/Update**: Correctly implementing the gain logic based on net distribution changes before/after a move is crucial and complex.
-- **Balance Constraint**: Must be checked when selecting the `baseCell` in each step of a pass to ensure the intermediate partition doesn't become too unbalanced, and the final result meets the strict requirement.
-- **Pass Structure**: Track the minimum cut size during a pass and revert to that state. Only commit improvements pass-over-pass.
-
-## 9. Documentation
-
-### 9.1. Code Documentation
-Use comments to explain complex parts (gain logic, bucket updates).
-
-### 9.2. Report Section (Compilation/Execution)
-Provide clear `Makefile` or `g++` commands needed to compile. Specify the exact command-line format (`./fm input_file output_file`). [cite: User Prompt: F-M Circuit Partitioning Assignment]
-
-### 9.3. Report Section (Results)
-Include a Markdown table listing cut size and runtime for each PASSED benchmark. [cite: User Prompt: F-M Circuit Partitioning Assignment]
-
-### 9.4. Report Section (Challenges)
-Document difficulties encountered (e.g., debugging gain updates, performance tuning) and how they were resolved. [cite: User Prompt: F-M Circuit Partitioning Assignment] 
-
-## 10. Conclusion
-
-This design outlines a plan to implement the Fiduccia-Mattheyses partitioning algorithm as required by the assignment. By focusing on correct algorithm implementation, efficient data structures (especially the Gain Bucket), and careful handling of constraints and gain updates, the goal is to produce a partitioner that passes the checker, achieves good quality results (low cut size), and performs efficiently. The modular structure should facilitate development and testing.
-
-The key insights to keep in mind during implementation are:
-
-1. The Gain Bucket is the heart of the algorithm. Its efficient implementation using doubly-linked lists indexed by gain is critical for performance. Focus on optimizing the add, remove, and update operations.
-
-2. Correctly calculating and updating cell gains based on net distribution changes is complex but essential. Spend time designing and testing this logic thoroughly. Think carefully about which cells need their gain updated after each move.
-
-3. The balance constraint adds a tricky wrinkle. It needs to be checked at each cell selection step to keep the intermediate partitions reasonably balanced, while ensuring the final result strictly meets the spec. Consider allowing some imbalance during a pass but reverting if needed.
-
-4. The overall pass structure is about hill climbing - make a series of moves, but revert back to the best solution found in that pass. Only keep improvements across passes. This allows more freedom to explore during each pass.
-
-5. Performance will likely require some profiling and tuning. The gain update logic is the likely bottleneck. Look for ways to minimize redundant work and cache information strategically. Also consider general C++ best practices like avoiding copies, preferring references, pre-allocating data structures, and enabling compiler optimizations.
-
-6. Invest time upfront in building quality test cases and setting up infrastructure to evaluate solution quality (cut size) and runtime on the provided benchmarks. This will pay dividends in development velocity and confidence later on.
-
-With focused effort in these key areas, you'll be well on your way to a successful F-M implementation. Remember, start with correctness, then layer on performance enhancements iteratively. Best of luck and enjoy the challenge of grappling with this classic CAD algorithm! Let me know if any part of the design needs further clarification.
-
-   - Undo moves back to that best state by reversing the recorded moves after the optimal point. Update `Netlist`, `PartitionState`, `GainBucket` accordingly.
-   - Return true (improvement found).
-6. Else (no improvement):
-   - Undo all moves made in the pass, reverting to the state at the start of the pass.
-   - Return false (no improvement).
+4. After the loop, find the point (number of moves) in the recorded sequence that yielded the minimum `currentCutsize` (`bestMoveIndex`).
+5. Revert moves from the end back to the state after `bestMoveIndex`.
+   - **Important Refinement:** Instead of trusting the `currentCutsize` recorded in the move history at `bestMoveIndex`, recalculate the cut size from scratch based on the final partition state after reverting using a helper like `calculateCurrentCutSize()` to ensure correctness, especially for edge cases encountered during debugging.
+6. If `bestMoveIndex` is -1 (no improvement found during the pass), revert all moves. Reset cut size to the value at the start of the pass.
+7. Return true if `bestMoveIndex >= 0` and the best cut size found was strictly less than the initial cut size of the pass, otherwise return false.
 
 ### 4.3. Main Loop (FMEngine::run)
 
@@ -301,3 +249,31 @@ Efficient Gain Bucket (O(1) operations ideally). `unordered_map` for name lookup
 
 ### 7.2. Algorithm
 The gain update logic within `runPass` is the bottleneck. Minimize redundant calculations. Efficiently find the best feasible cell.
+
+### 7.3. Memory
+Avoid excessive copying. Use pointers and references where appropriate. Pre-allocate vectors if sizes are known (`cells_`, `nets_`). 
+
+### 7.4. Compiler Optimization
+Compile with `-O2` or `-O3` (achieved via `CMAKE_BUILD_TYPE=Release`).
+
+### 7.5. Language Choice
+C++ is recommended for performance.
+
+### 7.6. Adaptive Early Pass Termination (Added)
+To significantly reduce runtime on large benchmarks, passes are terminated early if no improvement in the best-found cut size occurs for a certain number of moves. This threshold is adaptive, starting higher in early passes (e.g., 2000) and decreasing in later passes (down to a minimum, e.g., 500) to balance exploration and efficiency.
+
+## 8. Phased Implementation Plan
+
+Based on the assignment checkpoint structure, the implementation will be divided into two main phases:
+
+### 8.1. Phase 1 (First Checkpoint)
+
+**Focus: Foundation and Basic Data Structures**
+
+1. **Parser Implementation**
+   - Implement input file parsing to extract balance factor and netlist information
+   - Create basic data structures to represent cells and nets
+   - Set up connectivity information between cells and nets
+
+2. **Basic Netlist Structure**
+   - Implement `

@@ -34,7 +34,7 @@ private:
 
     // Core algorithm steps
     void initializePartitions();
-    bool runPass();
+    bool runPass(int passCount);
     
     // Helper methods
     void calculateInitialGains();
@@ -47,6 +47,7 @@ private:
     // Utility methods
     int getMaxPossibleDegree() const;
     bool isMoveLegal(Cell* cell, int toPartition) const;
+    int calculateCurrentCutSize() const;
 };
 
 } // namespace fm 

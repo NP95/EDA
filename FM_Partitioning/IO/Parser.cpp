@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
+#include <iostream>
 
 namespace fm {
 
@@ -16,7 +17,11 @@ bool Parser::parseInput(const std::string& filename, double& balanceFactor, Netl
 
     // Read balance factor first
     if (std::getline(file, line)) {
+        // Trim leading/trailing whitespace from balance factor line
+        line.erase(0, line.find_first_not_of(" \t\n\r\f\v"));
+        line.erase(line.find_last_not_of(" \t\n\r\f\v") + 1);
         if (!parseBalanceFactor(line, balanceFactor)) {
+             std::cerr << "Error parsing balance factor line: '" << line << "'" << std::endl;
             throw std::runtime_error("Invalid balance factor format");
         }
         balanceFactorRead = true;
@@ -26,14 +31,67 @@ bool Parser::parseInput(const std::string& filename, double& balanceFactor, Netl
         throw std::runtime_error("No balance factor found in input file");
     }
 
-    // Read netlist
-    std::string currentNet;
+    // Read netlist, handling multi-line definitions
+    std::string currentNetName;
+    bool parsingNetDefinition = false;
+
     while (std::getline(file, line)) {
-        if (!parseNetLine(line, netlist)) {
-            throw std::runtime_error("Invalid netlist format");
+        std::istringstream iss(line);
+        std::string token;
+
+        while (iss >> token) {
+            if (token == ";") {
+                // Semicolon always terminates the current definition, if any
+                if (parsingNetDefinition) {
+                    parsingNetDefinition = false;
+                    currentNetName = ""; // Clear current net context
+                }
+                // Ignore the semicolon itself and continue processing the rest of the line
+                continue;
+            }
+
+            if (!parsingNetDefinition) {
+                // Expecting "NET" keyword to start a new definition
+                if (token != "NET") {
+                    // If it's not NET and we are not expecting it, it's an format error.
+                    // Ignore lines that are effectively empty or comments (e.g. starting with ';').
+                    // The check at the start of the inner loop handles standalone ';'.
+                    // If we get here with a non-"NET" token, it's unexpected.
+                    std::cerr << "Parser Error: Expected 'NET' keyword to start a definition, but found '" << token << "' on line: " << line << std::endl;
+                    return false; // Indicate failure
+                }
+
+                // Found "NET", now expect the net name
+                if (!(iss >> currentNetName)) {
+                    std::cerr << "Parser Error: Missing net name after 'NET' on line: " << line << std::endl;
+                    return false; // Indicate failure
+                }
+                netlist.addNet(currentNetName);
+                parsingNetDefinition = true;
+                // Continue reading tokens (cells) from the *same line* in this inner loop
+
+            } else {
+                // Inside a net definition, expecting cell names
+                // The semicolon case is handled above. Any other token is treated as a cell.
+                netlist.addCell(token); // addCell should handle if the cell already exists
+                netlist.addCellToNet(currentNetName, token);
+            }
         }
+        // End of the current line reached.
+        // If parsingNetDefinition is still true, the next getline will continue adding cells to currentNetName.
+        // If parsingNetDefinition became false (due to ';'), the next getline will expect "NET".
     }
 
+    // After reading all lines, check if we were left mid-definition
+    if (parsingNetDefinition) {
+        // This means the file ended without a closing semicolon for the last net.
+        // Depending on strictness, this could be an error or a warning.
+        // For the assignment checker, it's likely an error.
+        std::cerr << "Parser Error: Input file ended while parsing net '" << currentNetName << "'. Missing terminating semicolon?" << std::endl;
+        return false; // Indicate failure
+    }
+
+    // Successfully parsed the entire file
     return true;
 }
 
@@ -47,40 +105,6 @@ bool Parser::parseBalanceFactor(const std::string& line, double& balanceFactor) 
     } catch (...) {
         return false;
     }
-}
-
-bool Parser::parseNetLine(const std::string& line, Netlist& netlist) {
-    std::istringstream iss(line);
-    std::string token;
-
-    // Skip empty lines
-    if (line.empty()) {
-        return true;
-    }
-
-    // Expect "NET" keyword
-    if (!(iss >> token) || token != "NET") {
-        return false;
-    }
-
-    // Get net name
-    if (!(iss >> token)) {
-        return false;
-    }
-    std::string netName = token;
-    netlist.addNet(netName);
-
-    // Read cells until semicolon
-    while (iss >> token) {
-        if (token == ";") {
-            return true;
-        }
-        // Add cell and connect it to the net
-        netlist.addCell(token);
-        netlist.addCellToNet(netName, token);
-    }
-
-    return false;  // No semicolon found
 }
 
 } // namespace fm 
