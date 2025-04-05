@@ -3,7 +3,7 @@
 # Compiler
 CXX = g++
 
-# Add DEBUG_MODE variable, default is 0 (Release)
+# Build flags
 DEBUG_MODE ?= 0
 
 # Base flags
@@ -27,7 +27,7 @@ INCDIR = include
 OBJDIR = obj
 
 # Name of the final executable
-TARGET = sta_tool
+TARGET = sta_tool # Reverted to fixed name
 
 # Find all .cpp files in the source directory
 SRCS = $(wildcard $(SRCDIR)/*.cpp)
@@ -35,6 +35,12 @@ SRCS = $(wildcard $(SRCDIR)/*.cpp)
 # Generate object file names in the object directory
 # e.g., src/Utils.cpp -> obj/Utils.o
 OBJS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(SRCS))
+
+# --- Special Targets ---
+
+# Debug build
+debug:
+	$(MAKE) DEBUG_MODE=1 all
 
 # --- Rules ---
 
@@ -67,4 +73,4 @@ clean:
 	@echo "Cleanup complete."
 
 # Declare targets that are not actual files
-.PHONY: all clean $(OBJDIR)
+.PHONY: all clean debug $(OBJDIR)

@@ -30,6 +30,16 @@ void Node::setInputSlew(double val) { inputSlew_ = val; }
 void Node::setSlack(double val) { slack_ = val; }
 void Node::setRequiredArrivalTime(double val) { requiredArrivalTime_ = val; }
 
+// Reset timing information and cache flags
+void Node::resetTimingAndCache() {
+    arrivalTime_ = 0.0;
+    inputSlew_ = 0.0; // Will be set for PIs in forward traversal
+    slack_ = std::numeric_limits<double>::max();
+    requiredArrivalTime_ = std::numeric_limits<double>::max();
+    cachedLoadCapacitance_ = -1.0;
+    loadCapacitanceDirty_ = true;
+}
+
 // --- Add Fan-in/Fan-out Implementations ---
 void Node::addFanIn(int nodeId) { fanInList_.push_back(nodeId); }
 void Node::addFanOut(int nodeId) { fanOutList_.push_back(nodeId); }

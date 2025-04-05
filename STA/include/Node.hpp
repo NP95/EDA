@@ -22,6 +22,10 @@ private:
     double slack_ = std::numeric_limits<double>::max(); // ps
     double requiredArrivalTime_ = std::numeric_limits<double>::max(); // ps
 
+    // Cache Members for Performance
+    mutable double cachedLoadCapacitance_ = -1.0; // Use mutable for const methods
+    mutable bool loadCapacitanceDirty_ = true;     // Use mutable
+
     bool isPrimaryOutput_ = false; // Sink node (PO or DFF input)
     bool isPrimaryInput_ = false;  // Source node (PI or DFF output)
     int id_ = -1;
@@ -49,6 +53,9 @@ public:
     void setInputSlew(double val);
     void setSlack(double val);
     void setRequiredArrivalTime(double val);
+
+    // Reset timing and cache flags (called before STA runs)
+    void resetTimingAndCache();
 
     // Add fan-in/fan-out relationships
     void addFanIn(int nodeId);

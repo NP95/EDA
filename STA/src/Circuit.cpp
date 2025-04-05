@@ -18,6 +18,29 @@
 #include <set>
 #include <utility>
 
+// Define TimingInfo structure at the top of the file, before any functions that use it
+struct TimingInfo {
+    double gateDelay;
+    double outputSlew;
+    
+    TimingInfo(double delay = 0.0, double slew = 0.0) 
+        : gateDelay(delay), outputSlew(slew) {}
+};
+
+// Helper function for Gate to calculate timing
+static TimingInfo calculateGateTiming(const Gate& gate, double inputSlewPs, double loadCapFf, int fanInCount) {
+    TimingInfo result;
+    result.gateDelay = gate.interpolateDelay(inputSlewPs, loadCapFf);
+    result.outputSlew = gate.interpolateSlew(inputSlewPs, loadCapFf);
+    
+    // Apply heuristic scaling for >2 inputs
+    if (fanInCount > 2) {
+        result.gateDelay *= static_cast<double>(fanInCount) / 2.0;
+    }
+    
+    return result;
+}
+
 // --- Constructor Implementations ---
 // Constructor for custom locale facet
 Circuit::ParenCommaEq_is_space::ParenCommaEq_is_space(size_t refs)
@@ -164,6 +187,14 @@ bool Circuit::hasNode(int id) const {
     return netlist_.count(id);
 }
 
+// #ifdef VALIDATE_OPTIMIZATIONS // Removed validation code
+/*
+// Validation method to test all optimizations
+bool Circuit::validateOptimizations() const {
+    // ... validation implementation ...
+}
+*/
+// #endif // Removed validation code
 
 // --- Private Helper Implementations ---
 
@@ -256,42 +287,63 @@ void Circuit::parseLine(const std::string& line) {
 
 
 double Circuit::calculateLoadCapacitance(int nodeId) const {
-    const Node& node = netlist_.at(nodeId);
-    double loadCap = 0.0;
+    // Get const reference to the node
+    const Node& constNode = netlist_.at(nodeId); 
     
-    // Only apply 4×INV rule if this node is a PO with no fanouts
-    if (node.getFanOutList().empty() && node.isPrimaryOutput()) {
-        double invCap = gateLib_.getGate(INV_GATE_NAME).getCapacitance();
-        loadCap = PRIMARY_OUTPUT_LOAD_FACTOR * invCap;
-        STA_TRACE("  Node " + std::to_string(nodeId) + " is a PO with no fanouts. Setting load = " + 
-                  std::to_string(loadCap) + " fF");
-        return loadCap;
+    // Check cache first - this doesn't require modification
+    if (!constNode.loadCapacitanceDirty_ && constNode.cachedLoadCapacitance_ >= 0.0) {
+        return constNode.cachedLoadCapacitance_;
     }
-    
-    // For all other nodes, just sum input capacitances of fanout gates
-    for (int fanOutNodeId : node.getFanOutList()) {
-        const Node& fanOutNode = netlist_.at(fanOutNodeId);
-        
-        // Skip special nodes like INPUT markers
-        if (fanOutNode.isPrimaryInput() || 
-            fanOutNode.getNodeType() == INPUT_NODE_TYPE ||
-            fanOutNode.getNodeType() == OUTPUT_NODE_TYPE) {
-            continue;
+
+    // Calculation logic
+    double totalCapacitance = 0.0;
+    if (constNode.getFanOutList().empty()) {
+        // Special handling for Primary Outputs (PO) or floating nodes
+        if (constNode.isPrimaryOutput()) {
+            // For primary outputs, use a default load
+            totalCapacitance = 4.0; // Default output load in fF
+        } else {
+            // Node has no fanouts and is not a PO - potentially floating
+            totalCapacitance = 0.0;
         }
-        
-        // Add input capacitance for this fanout gate
-        if (gateLib_.hasGate(fanOutNode.getNodeType())) {
-            double gateCap = gateLib_.getGate(fanOutNode.getNodeType()).getCapacitance();
-            loadCap += gateCap;
-            STA_TRACE("  Adding input cap from fanout Node " + std::to_string(fanOutNodeId) + 
-                     " (" + fanOutNode.getNodeType() + "): " + std::to_string(gateCap) + " fF");
+    } else {
+        for (int fanOutNodeId : constNode.getFanOutList()) {
+            if (!netlist_.count(fanOutNodeId)) {
+                // Skip nonexistent fanout nodes
+                continue;
+            }
+            
+            const Node& fanOutNode = netlist_.at(fanOutNodeId);
+            
+            // Skip special node types that don't have gate capacitance
+            if (fanOutNode.isPrimaryInput() || fanOutNode.isPrimaryOutput() || 
+                fanOutNode.getNodeType() == "DFF_IN" || fanOutNode.getNodeType() == "DFF_OUT" ||
+                fanOutNode.getNodeType() == INPUT_NODE_TYPE || fanOutNode.getNodeType() == OUTPUT_NODE_TYPE) {
+                continue;
+            }
+            
+            // Check if gate exists in library
+            if (!gateLib_.hasGate(fanOutNode.getNodeType())) {
+                continue; // Skip fanouts with unknown gate types
+            }
+            
+            // Get capacitance from the gate
+            double inputPinCap = gateLib_.getGate(fanOutNode.getNodeType()).getCapacitance();
+            
+            // Add wire capacitance (placeholder)
+            double wireCap = 0.0;
+            
+            totalCapacitance += (inputPinCap + wireCap);
         }
     }
-    
-    STA_DETAIL("Exit calculateLoadCapacitance for Node " + std::to_string(nodeId) + 
-              ". Result = " + std::to_string(loadCap) + " fF");
-    return loadCap;
+
+    // Update cache - use const_cast for the mutable members
+    const_cast<Node&>(constNode).cachedLoadCapacitance_ = totalCapacitance;
+    const_cast<Node&>(constNode).loadCapacitanceDirty_ = false;
+
+    return totalCapacitance;
 }
+
 void Circuit::performTopologicalSort() {
      topologicalOrder_.clear();
     std::unordered_map<int, int> inDegree;
@@ -372,137 +424,214 @@ void Circuit::performForwardTraversal() {
 
     if (topologicalOrder_.empty()) {
         STA_ERROR("Cannot perform forward traversal: Topological sort has not been run or failed.");
-        throw std::runtime_error("Cannot perform forward traversal: Topological sort has not been run or failed.");
+        return;
     }
 
-    std::ostringstream oss; // For formatting debug messages
-    oss << std::fixed << std::setprecision(4);
+    // Reset arrival times, slews, AND CACHES before traversal
+    for (auto& pair : netlist_) {
+        // Use the new reset method
+        pair.second.resetTimingAndCache();
+    }
 
+    maxCircuitDelay_ = 0.0; // Reset max delay
+
+    // Process nodes in topological order
     for (int nodeId : topologicalOrder_) {
-        Node& currentNode = netlist_.at(nodeId); // Assumes node exists
-        oss << "Forward Pass: Processing Node " << nodeId << " (" << currentNode.getNodeType() << ")";
-        STA_DETAIL(oss.str()); oss.str("");
-
-        if (currentNode.isPrimaryInput()) { // PI or DFF Output
-            currentNode.setArrivalTime(0.0);
-            currentNode.setInputSlew(DEFAULT_INPUT_SLEW);
-            oss << "  -> PI/DFF_OUT: Set AT=0.0ps, Slew=" << DEFAULT_INPUT_SLEW << "ps";
-            STA_DETAIL(oss.str()); oss.str("");
-            continue; // Still skip PIs as they are the starting point
+        // Assuming nodeId exists due to topological sort validity
+        Node& currentNode = netlist_[nodeId]; // Use [] instead of .at()
+#ifdef DEBUG_BUILD
+        if (Debug::getLevel() >= Debug::Level::DETAIL) {
+            std::ostringstream oss;
+            // Use available information like ID and Type
+            oss << "Processing Node " << nodeId << " (Type: " << currentNode.getNodeType() << ")";
+            STA_DETAIL(oss.str());
         }
+#endif
 
-        // *** CHANGE 1: REMOVED the explicit skipping of OUTPUT_NODE_TYPE and DFF_IN ***
-        // We now process all non-PI nodes. Sink nodes (like POs) will naturally
-        // have their AT calculated based on inputs, and update maxCircuitDelay.
-        // They typically won't propagate slew further if load calc handles them correctly.
+        double nodeArrival = 0.0;
+        double nodeSlew = 0.0; // Output slew from this node
 
-        // Check if it's a type that needs library lookup (regular gates, including PO drivers)
-        // Exclude INPUT/OUTPUT markers just in case they appear mid-graph unexpectedly
-         if (currentNode.getNodeType() == INPUT_NODE_TYPE ||
-             currentNode.getNodeType() == OUTPUT_NODE_TYPE || // Should only be POs now
-             currentNode.getNodeType() == "DFF_IN") {        // Sink boundary
-             // This block should ideally not be needed if parsing/TSort is correct
-             // and POs are handled below, but acts as a safeguard.
-              STA_WARN("Node " + std::to_string(nodeId) + " has unexpected sink/marker type '"
-                       + currentNode.getNodeType() + "' in forward traversal main loop. Skipping gate calc.");
-              continue;
-         }
+        const auto& fanIns = currentNode.getFanInList();
+        const std::string& nodeType = currentNode.getNodeType();
 
-        // --- Gate Processing (Includes PO drivers like nodes 6, 7) ---
-        if (!gateLib_.hasGate(currentNode.getNodeType())) {
-             STA_ERROR("Forward traversal: Unknown gate type '" + currentNode.getNodeType() + "' for node " + std::to_string(nodeId));
-             throw std::runtime_error("Forward traversal: Unknown gate type '" + currentNode.getNodeType() + "' for node " + std::to_string(nodeId));
-        }
+        // Handle PIs and Constants (typically have 0 arrival time and predefined slew)
+        if (nodeType == "PI" || nodeType == "INPUT" ) { // Make "INPUT" consistent if used
+            nodeArrival = 0.0; // Base arrival time for primary inputs
+            // Slew for PIs might be defined by input constraints or default
+            nodeSlew = 2.0; // Use a defined constant
+#ifdef DEBUG_BUILD
+            if (Debug::getLevel() >= Debug::Level::DETAIL) {
+                std::ostringstream oss;
+                oss << "  Node " << nodeId << " is PI. Setting AT=0, Slew=" << nodeSlew << " ps (Default)";
+                STA_DETAIL(oss.str());
+            }
+#endif
+        } else if (gateLib_.hasGate(nodeType)) { // Standard gate
+            const Gate& gate = gateLib_.getGate(nodeType);
+            
+            // Calculate arrival time based on the latest arriving input + gate delay
+            double maxFanInArrival = 0.0;
+            double maxInputSlewForDelay = 0.0; // Slew of the input that determines the arrival time
 
-        const Gate& gateInfo = gateLib_.getGate(currentNode.getNodeType());
-        // Use the CORRECTED load calculation from the previous step
-        double loadCap = calculateLoadCapacitance(nodeId);
+            if (fanIns.empty()) {
+                 // Gate with no fan-ins? This might indicate an issue (e.g., constant generator modeled as gate)
+                 // Or potentially an unconnected gate. Treat as arrival time 0? Depends on design rules.
+#ifdef DEBUG_BUILD
+                 // This case was handled by the WARN below, let's keep the WARN as it indicates a potential issue.
+                 // if (Debug::getLevel() >= Debug::Level::DETAIL) {
+                 //     std::ostringstream oss;
+                 //     oss << "  Node " << nodeId << " (" << nodeType << ") has no fanins. Assuming AT=0.";
+                 //     STA_DETAIL(oss.str());
+                 // }
+#endif
+                 // Warning is more appropriate here. Using the existing STA_WARN.
+                 STA_WARN("Node " + std::to_string(nodeId) + " (" + nodeType + ") is not PI but has no fanins. Setting AT=0.");
+                 nodeArrival = 0.0; // Set arrival to 0 if no inputs drive it
+                 nodeSlew = 2.0; // Default input slew in ps
+            } else {
+                 for (int fanInNodeId : fanIns) {
+                     // Assuming fanInNodeId exists as it came from currentNode's fan-in list
+                     Node& fanInNode = netlist_[fanInNodeId]; // Use [] instead of .at()
+                     double fanInArrival = fanInNode.getArrivalTime();
+                     double fanInSlew = fanInNode.getInputSlew(); // Use the output slew of the fan-in node
 
-        double maxArrivalTimeAtOutput = 0.0;
-        // double slewForMaxArrival = 0.0; // Using max slew instead
-        double maxOutputSlew = 0.0;       // *** CHANGE 2a: Variable for max(slews) rule ***
-        int criticalFanin = -1;
+#ifdef DEBUG_BUILD
+                     if (Debug::getLevel() >= Debug::Level::TRACE) {
+                         std::ostringstream oss;
+                         oss << "    FanIn Node " << fanInNodeId << " (" << fanInNode.getNodeType() << "): AT=" << fanInArrival << "ps, OutSlew=" << fanInSlew << "ps";
+                         STA_TRACE(oss.str());
+                     }
+#endif
 
-        oss << "  Processing " << currentNode.getFanInList().size() << " fanins for Node " << nodeId << " (Load=" << loadCap << "fF)";
-        STA_DETAIL(oss.str()); oss.str("");
+                     if (fanInArrival >= maxFanInArrival) { // Find latest arrival
+                         if (fanInArrival > maxFanInArrival || fanInSlew > maxInputSlewForDelay) { // Tie-break with slew if arrival times are equal
+                             maxFanInArrival = fanInArrival;
+                             maxInputSlewForDelay = fanInSlew; // This input determines the timing path
+                         }
+                     }
+                 }
 
-        if (currentNode.getFanInList().empty()) { // Should only happen for PIs, already skipped
-            STA_WARN("Node " + std::to_string(nodeId) + " (" + currentNode.getNodeType() + ") is not PI but has no fanins. Setting AT=0.");
-            currentNode.setArrivalTime(0.0);
-            currentNode.setInputSlew(0.0); // Set slew to 0? Or default?
+                 // Calculate load capacitance for the current node
+                 double loadCapacitance = calculateLoadCapacitance(nodeId); // Call the potentially cached version later
+
+                 // Calculate gate delay and output slew using the library
+                 // Use the slew of the *latest arriving input* for calculations
+                 TimingInfo timing = calculateGateTiming(gate, maxInputSlewForDelay, loadCapacitance, fanIns.size());
+
+#ifdef DEBUG_BUILD
+                if (Debug::getLevel() >= Debug::Level::TRACE) {
+                     // Prepare context strings only if tracing is enabled
+                    std::string nodeContext = "Node " + std::to_string(nodeId) + " (" + nodeType + ")";
+                    std::string faninContext = "Driving Fanin Slew: " + std::to_string(maxInputSlewForDelay) + "ps"; // Updated context
+                    STA_TRACE_GATE_DELAY(nodeContext, faninContext, maxInputSlewForDelay, loadCapacitance, fanIns.size(), 1.0, timing.gateDelay, "Forward Traversal");
+                 }
+#endif
+
+                 nodeArrival = maxFanInArrival + timing.gateDelay;
+                 nodeSlew = timing.outputSlew;
+
+#ifdef DEBUG_BUILD
+                 if (Debug::getLevel() >= Debug::Level::TRACE) {
+                    std::ostringstream oss;
+                    oss << "  Calculated for Node " << nodeId << ": LoadCap=" << loadCapacitance << "fF, InputSlew=" << maxInputSlewForDelay
+                        << "ps, GateDelay=" << timing.gateDelay << "ps, OutputSlew=" << nodeSlew << "ps";
+                    STA_TRACE(oss.str());
+                 }
+#endif
+            }
+
+        } else if (nodeType == "PO" || nodeType == "OUTPUT" || nodeType == "DFF_IN") { // Sink nodes
+            // Arrival time at a PO or DFF input is determined by the driving gate's arrival + delay
+            // This logic seems redundant if POs/DFF_INs are handled correctly as sinks of driving gates.
+            // Let's refine: Arrival time *at the input pin* of a PO/DFF matters.
+            // The driving node's calculated arrival/slew IS the arrival/slew at the PO/DFF input pin.
+            // So, we just need to update the maxCircuitDelay here.
+
+            if (!fanIns.empty()) {
+                 // Should only have one fan-in for typical PO/DFF_IN models
+                 int driverNodeId = fanIns[0]; // Assume single driver
+                 // Assuming driverNodeId exists as it's the fan-in of a known node
+                 Node& driverNode = netlist_[driverNodeId]; // Use [] instead of .at()
+                 nodeArrival = driverNode.getArrivalTime(); // Arrival time at the sink is the AT of the driver
+                 nodeSlew = driverNode.getInputSlew(); // Slew at the sink input is the output slew of the driver
+            } else {
+                // A sink node with no driver? Error.
+                STA_WARN("Sink node " + std::to_string(nodeId) + " (" + nodeType + ") has no fanin.");
+                nodeArrival = 0;
+                nodeSlew = 0;
+            }
+#ifdef DEBUG_BUILD
+             if (Debug::getLevel() >= Debug::Level::DETAIL) {
+                 std::ostringstream oss;
+                 oss << "  Node " << nodeId << " is Sink (" << nodeType << "). Inheriting AT=" << nodeArrival << "ps, Slew=" << nodeSlew << "ps from driver.";
+                 STA_DETAIL(oss.str());
+             }
+#endif
+        } else {
+            // Unknown node type
+            STA_WARN("Node " + std::to_string(nodeId) + " has unknown type '" + nodeType + "' during forward traversal. Skipping.");
             continue;
         }
 
-        for (int fanInNodeId : currentNode.getFanInList()) {
-            const Node& fanInNode = netlist_.at(fanInNodeId);
-            double fanInSlew = fanInNode.getInputSlew();
-            double fanInArrival = fanInNode.getArrivalTime();
 
-            STA_TRACE("    FanIn Node " + std::to_string(fanInNodeId) + " (" + fanInNode.getNodeType() + "): AT=" + std::to_string(fanInArrival) + "ps, OutSlew=" + std::to_string(fanInSlew) + "ps");
+        // Store calculated arrival time and slew
+        currentNode.setArrivalTime(nodeArrival);
+        currentNode.setInputSlew(nodeSlew);
+        // currentNode.setDrivingFanInNodeId(drivingFanInNodeId); // Remove if not declared in Node
 
-            // Calculate delay and output slew for THIS path
-            double delay = gateInfo.interpolateDelay(fanInSlew, loadCap);
-            double pathOutputSlew = gateInfo.interpolateSlew(fanInSlew, loadCap);
+#ifdef DEBUG_BUILD
+        if (Debug::getLevel() >= Debug::Level::DETAIL) {
+            std::ostringstream oss;
+            oss << "  Node " << nodeId << " (Sink): Arrival=" << nodeArrival << "ps"; // Simplified trace
+            STA_DETAIL(oss.str());
+        }
+#endif
 
-            double scaleFactor = 1.0;
-            // Apply heuristic scaling (only affects delay in reference/spec)
-            if (currentNode.getFanInList().size() > 2) {
-                scaleFactor = (static_cast<double>(currentNode.getFanInList().size()) / 2.0);
-                delay *= scaleFactor;
-            }
-
-             STA_TRACE_GATE_DELAY(
-                 std::to_string(nodeId) + " (" + currentNode.getNodeType() + ")",
-                 std::to_string(fanInNodeId) + " (" + fanInNode.getNodeType() + ")",
-                 fanInSlew, loadCap, currentNode.getFanInList().size(),
-                 scaleFactor, delay, "Forward Traversal");
-
-            double arrivalTimeViaThisInput = fanInArrival + delay;
-             oss.str(""); oss << "      -> Arrival Via this path = " << fanInArrival << " + " << delay << " = " << arrivalTimeViaThisInput << " ps";
-             STA_TRACE(oss.str());
-
-             // Update Max Arrival Time
-            if (arrivalTimeViaThisInput > maxArrivalTimeAtOutput) {
-                 oss.str(""); oss << "      -> New Max Arrival Time! (Prev=" << maxArrivalTimeAtOutput << ")";
-                 STA_TRACE(oss.str());
-                 maxArrivalTimeAtOutput = arrivalTimeViaThisInput;
-                 criticalFanin = fanInNodeId;
-                 // Don't update slew here under argmax rule, use max rule below
-            }
-            // *** CHANGE 2b: Update Max Slew using max rule ***
-            maxOutputSlew = std::max(maxOutputSlew, pathOutputSlew);
-
-        } // End for fanInNodeId
-
-        currentNode.setArrivalTime(maxArrivalTimeAtOutput);
-        currentNode.setInputSlew(maxOutputSlew); // *** CHANGE 2c: Assign the overall max slew ***
-
-        oss.str(""); oss << "  Node " << nodeId << " Final: AT=" << currentNode.getArrivalTime() << " ps, OutSlew=" << currentNode.getInputSlew()
-            << " ps (MaxAT from Fanin " << criticalFanin << ", MaxSlew across all fanins)"; // Clarified log
-        STA_DETAIL(oss.str());
-
-
-        // Update Max Circuit Delay if this node IS a Primary Output
-        // This node could be type NAND/etc. but also be a PO if its ID is listed in OUTPUT()
+        // Update maximum circuit delay if this node is a sink (PO or DFF input)
         if (currentNode.isPrimaryOutput()) {
-            if (currentNode.getArrivalTime() > maxCircuitDelay_) {
-                oss.str(""); oss << "  *** Updating Max Circuit Delay from " << maxCircuitDelay_ << " to " << currentNode.getArrivalTime() << " ps (at PO Node " << nodeId << ") ***";
-                STA_INFO(oss.str());
-                maxCircuitDelay_ = currentNode.getArrivalTime();
+            if (nodeArrival > maxCircuitDelay_) {
+                maxCircuitDelay_ = nodeArrival;
+                // Start critical path tracking from this sink later
             }
         }
-    } // End for nodeId in topologicalOrder_
+    } // End loop through topological order
 
-    // Final summary/warning log remains the same
-    if (maxCircuitDelay_ <= 0.0 && !netlist_.empty()) {
-        bool hasSinks = false;
-        for(const auto& [id, node] : netlist_){ if(node.isPrimaryOutput()) { hasSinks = true; break;} }
-        if(hasSinks){ STA_WARN("Circuit delay calculated as " + std::to_string(maxCircuitDelay_) + " ps. Check netlist connectivity and library values.");}
-        else { STA_WARN("No primary outputs or DFF inputs found in the netlist. Circuit delay is 0.");}
-    } else {
-         oss.str(""); oss << "Forward Traversal Complete. Final Circuit Delay = " << maxCircuitDelay_ << " ps";
-         STA_INFO(oss.str());
+    // Report final circuit delay
+    std::ostringstream finalOss;
+    bool hasSinks = false;
+    
+    // Check if any nodes are primary outputs
+    for (const auto& [_, node] : netlist_) {
+        if (node.isPrimaryOutput()) {
+            hasSinks = true;
+            break;
+        }
     }
+    
+    if (hasSinks) {
+        finalOss << "Forward Traversal Complete. Max Circuit Delay (AT at latest sink) = " << maxCircuitDelay_ << " ps.";
+    } else {
+        finalOss << "Forward Traversal Complete. No sinks (PO/DFF_IN) found. Max Delay = 0 ps.";
+        // Keep the existing warning logic below based on hasSinks
+    }
+    STA_INFO(finalOss.str()); // Use the stream here
+
+    // Add warnings if delay seems unreasonable
+    if (maxCircuitDelay_ < 1e-9 && hasSinks) { // Check for near-zero delay only if sinks exist
+        // Warning already included in stream above potentially, but this adds context.
+        // Existing warning covers this:
+        // STA_WARN("Circuit delay calculated as " + std::to_string(maxCircuitDelay_) + " ps. Check netlist connectivity and library values.");
+    } else if (!hasSinks) {
+         // Existing warning covers this:
+         // STA_WARN("No primary outputs or DFF inputs found in the netlist. Circuit delay is 0.");
+    }
+
+    // Optional: Dump state after forward traversal for debugging
+#ifdef DEBUG_BUILD
+    if (Debug::getLevel() >= Debug::Level::INFO) { // Or DETAIL level
+         // dumpCircuitState(*this, "After Forward Traversal");
+    }
+#endif
 }
 
 
@@ -511,7 +640,7 @@ void Circuit::performBackwardTraversal() {
         throw std::runtime_error("Cannot perform backward traversal: Topological sort has not been run or failed.");
     }
 
-    double requiredTimeVal = maxCircuitDelay_ * REQUIRED_TIME_MARGIN;
+    double requiredTimeVal = maxCircuitDelay_ * 1.1; // Required time margin
      // Ensure requiredTimeVal is at least slightly positive even if maxCircuitDelay is 0
      if (requiredTimeVal <= 0.0) requiredTimeVal = std::numeric_limits<double>::epsilon();
 
@@ -530,16 +659,16 @@ void Circuit::performBackwardTraversal() {
     // Traverse topologically backward
     for (auto it = topologicalOrder_.rbegin(); it != topologicalOrder_.rend(); ++it) {
         int nodeId = *it;
-        Node& currentNode = netlist_.at(nodeId);
+        // Assuming nodeId exists due to topological sort validity
+        Node& currentNode = netlist_[nodeId]; // Use [] instead of .at()
 
         // Skip sinks (POs, DFF inputs) - their RAT is the starting point
          if (currentNode.getNodeType() == OUTPUT_NODE_TYPE || currentNode.getNodeType() == "DFF_IN") {
              // Calculate slack for sinks directly using their own RAT and their driver's AT
              if (!currentNode.getFanInList().empty()){
                  int driverId = currentNode.getFanInList()[0];
-                 if(netlist_.count(driverId)){
-                     currentNode.setSlack(currentNode.getRequiredArrivalTime() - netlist_.at(driverId).getArrivalTime());
-                 } else { currentNode.setSlack(0); } // No driver? Problem.
+                 // Assuming driverId exists if it's in fan-in list
+                 currentNode.setSlack(currentNode.getRequiredArrivalTime() - netlist_[driverId].getArrivalTime()); // Use []
              } else {
                  currentNode.setSlack(currentNode.getRequiredArrivalTime()); // No driver, slack is RAT - 0?
              }
@@ -563,8 +692,8 @@ void Circuit::performBackwardTraversal() {
          } else {
              // Calculate required time based on the earliest required time propagating back from fan-out nodes
              for (int fanOutNodeId : currentNode.getFanOutList()) {
-                  // Use .at() - assumes fanout exists if listed
-                  const Node& fanOutNode = netlist_.at(fanOutNodeId);
+                  // Assuming fanOutNodeId exists as it's in fan-out list
+                  const Node& fanOutNode = netlist_[fanOutNodeId]; // Use [] instead of .at()
 
                  // Skip if fanout is a source (PI/DFF_OUT) - invalid connection for timing calc
                  if (fanOutNode.isPrimaryInput()) {
@@ -619,14 +748,15 @@ void Circuit::performBackwardTraversal() {
                  minRequiredTimeAtSourceOutput = requiredTimeVal; // Source drives nothing, slack based on global requirement
             } else {
                 for (int fanOutNodeId : node.getFanOutList()) {
-                    const Node& fanOutNode = netlist_.at(fanOutNodeId);
+                    // Assuming fanOutNodeId exists as it's in fan-out list
+                    const Node& fanOutNode = netlist_[fanOutNodeId]; // Use [] instead of .at()
                     if (fanOutNode.isPrimaryInput()) continue; // Skip invalid fanout to source
 
                     double delayThroughFanout = 0.0;
                      if (fanOutNode.getNodeType() != OUTPUT_NODE_TYPE && fanOutNode.getNodeType() != "DFF_IN" && gateLib_.hasGate(fanOutNode.getNodeType())) {
                         const Gate& fanOutGateInfo = gateLib_.getGate(fanOutNode.getNodeType());
                         double loadCapOfFanout = calculateLoadCapacitance(fanOutNodeId);
-                        double slewAtPINodeOutput = DEFAULT_INPUT_SLEW; // Use default slew for PIs
+                        double slewAtPINodeOutput = 2.0; // Use default slew for PIs
 
                         delayThroughFanout = fanOutGateInfo.interpolateDelay(slewAtPINodeOutput, loadCapOfFanout);
                          if (fanOutNode.getFanInList().size() > 2) {
@@ -663,12 +793,11 @@ std::vector<int> Circuit::findCriticalPath() const {
         if (node.isPrimaryOutput()) { // PO Marker or DFF_IN
             if (!node.getFanInList().empty()) {
                 int driverNodeId = node.getFanInList()[0]; // Assume single driver
-                if (netlist_.count(driverNodeId)) {
-                    const Node& driverNode = netlist_.at(driverNodeId);
-                    if (driverNode.getArrivalTime() > maxDelay) {
-                        maxDelay = driverNode.getArrivalTime();
-                        endNodeDriver = driverNodeId; // This is the last gate/node on the critical path
-                    }
+                // Assuming driverNodeId exists if listed in fan-in
+                const Node& driverNode = netlist_.at(driverNodeId); // Use .at() for const safety
+                if (driverNode.getArrivalTime() > maxDelay) {
+                    maxDelay = driverNode.getArrivalTime();
+                    endNodeDriver = driverNodeId; // This is the last gate/node on the critical path
                 }
             }
         }
@@ -694,7 +823,8 @@ std::vector<int> Circuit::findCriticalPath() const {
     int currentNodeId = endNodeDriver;
     while (currentNodeId != -1) {
         criticalPath.push_back(currentNodeId);
-        const Node& currentNode = netlist_.at(currentNodeId);
+        // Assuming currentNodeId exists from previous steps
+        const Node& currentNode = netlist_.at(currentNodeId); // Use .at() for const safety
 
         if (currentNode.isPrimaryInput()) { // Stop if we reach a PI or DFF Output
             break;
@@ -706,52 +836,38 @@ std::vector<int> Circuit::findCriticalPath() const {
              break;
         }
 
-
-        int criticalFanInNodeId = -1;
-        double maxPrevArrivalTime = -1.0;
-         double currentTargetArrival = currentNode.getArrivalTime(); // Target arrival time to match
+        double bestSlack = std::numeric_limits<double>::max();
+        int nextNodeId = -1;
 
         // Find the fan-in node + delay that resulted in the current node's arrival time
         for (int fanInNodeId : currentNode.getFanInList()) {
-            const Node& fanInNode = netlist_.at(fanInNodeId);
-            const Gate& currentGateInfo = gateLib_.getGate(currentNode.getNodeType()); // Current node must be a gate
-            double loadCap = calculateLoadCapacitance(currentNodeId);
-            double delay = currentGateInfo.interpolateDelay(fanInNode.getInputSlew(), loadCap);
-             if (currentNode.getFanInList().size() > 2) {
-                 delay *= (static_cast<double>(currentNode.getFanInList().size()) / 2.0);
-             }
+            // Assuming fanInNodeId exists as it's in fan-in list
+            const Node& fanInNode = netlist_.at(fanInNodeId); // Use .at() for const safety
+            // const Gate& currentGateInfo = gateLib_.getGate(currentNode.getNodeType()); // Declared but not needed now
+            // double loadCap = calculateLoadCapacitance(currentNodeId); // Declared but not needed now
+            // double inputSlew = fanInNode.getInputSlew(); // Declared but not needed now
+            // double delay = currentGateInfo.interpolateDelay(inputSlew, loadCap); // Removed, using slack
 
-             double arrivalViaThisInput = fanInNode.getArrivalTime() + delay;
-
-             // Check if this path matches the calculated arrival time (within tolerance)
-             // And if it comes from the latest arriving fan-in signal contributing to the critical path
-             // Using max arrival time of fan-in as the primary criterion (matching original code's logic)
-             if (fanInNode.getArrivalTime() > maxPrevArrivalTime) {
-                  maxPrevArrivalTime = fanInNode.getArrivalTime();
-                  criticalFanInNodeId = fanInNodeId;
-             }
+            // Check if this fan-in contributes to the critical path (based on slack)
+            if (fanInNode.getSlack() < bestSlack) {
+                bestSlack = fanInNode.getSlack();
+                nextNodeId = fanInNodeId;
+            }
         }
-
-         if (criticalFanInNodeId == -1){
-              // Could not find a fan-in path matching the criteria. Graph issue or logic error.
-               std::cerr << "Warning: Critical path trace failed to find critical fan-in for node " << currentNodeId << ". Path terminated." << std::endl;
-               break;
-         }
-
-        currentNodeId = criticalFanInNodeId; // Move to the next node in the path
+        currentNodeId = nextNodeId;
     }
 
     std::reverse(criticalPath.begin(), criticalPath.end());
-    
+
     // *** FIX: Add the primary output node that's driven by the last node in our path ***
     if (!criticalPath.empty()) {
         int lastNodeId = criticalPath.back();
         // Find the PO that this node drives (use the one with minimum slack if multiple)
         int criticalPO = -1;
         double minSlack = std::numeric_limits<double>::max();
-        
+
         for (const auto& [nodeId, node] : netlist_) {
-            if (node.isPrimaryOutput() && !node.getFanInList().empty() && 
+            if (node.isPrimaryOutput() && !node.getFanInList().empty() &&
                 node.getFanInList()[0] == lastNodeId) {
                 // This is a PO driven by our last node
                 if (node.getSlack() < minSlack) {
@@ -760,12 +876,19 @@ std::vector<int> Circuit::findCriticalPath() const {
                 }
             }
         }
-        
+
         if (criticalPO != -1) {
             // Add the PO to complete the critical path
             criticalPath.push_back(criticalPO);
         }
     }
-    
+
     return criticalPath;
 }
+
+// Remove or comment out the entire reportTiming method
+/* 
+void Circuit::reportTiming() {
+     // ... entire method body ...
+}
+*/

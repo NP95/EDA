@@ -9,6 +9,7 @@
 #include <stdexcept> // For exceptions
 #include <algorithm> // For std::min, std::max, std::upper_bound
 #include <iostream>  // For std::cerr warning in interpolation edge case
+#include <iomanip>   // For std::setprecision in debugging output
 
 // Constants specific to Gate structure (can be moved to Constants.h if preferred)
 constexpr size_t TABLE_DIM = 7;
@@ -26,6 +27,11 @@ private:
 
     // Private helper for interpolation
     double interpolateInternal(double inputSlewPs, double loadCap, bool isDelay) const;
+    
+    // #ifdef VALIDATE_OPTIMIZATIONS // Removed validation code
+    // // Original implementation kept for validation purposes
+    // double interpolateInternalOriginal(double inputSlewPs, double loadCap, bool isDelay) const;
+    // #endif // Removed validation code
 
 public:
     friend class GateLibrary; // Allow GateLibrary to modify private members during parsing
@@ -39,6 +45,11 @@ public:
     // --- Public interface for interpolation ---
     double interpolateDelay(double inputSlewPs, double loadCap) const;
     double interpolateSlew(double inputSlewPs, double loadCap) const;
+    
+    // #ifdef VALIDATE_OPTIMIZATIONS // Removed validation code
+    // // Validation function to verify optimization correctness
+    // bool validateInterpolation() const;
+    // #endif // Removed validation code
 
     // Method to check if gate data seems complete (basic check)
     bool isComplete() const;
