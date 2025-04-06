@@ -1,64 +1,54 @@
-// Gate.h
-#ifndef GATE_H
-#define GATE_H
+#pragma once
 
-#include <vector>
+#include "Constants.hpp"
+#include <array>
 #include <string>
-#include <cmath>     // For std::fabs
-#include <limits>    // For std::numeric_limits
-#include <stdexcept> // For exceptions
-#include <algorithm> // For std::min, std::max, std::upper_bound
-#include <iostream>  // For std::cerr warning in interpolation edge case
-#include <iomanip>   // For std::setprecision in debugging output
-
-// Constants specific to Gate structure (can be moved to Constants.h if preferred)
-constexpr size_t TABLE_DIM = 7;
-
-class GateLibrary; // Forward declaration
+#include <vector>
 
 class Gate {
-private:
-    std::vector<std::vector<double>> delayTable_;
-    std::vector<std::vector<double>> slewTable_;
-    std::vector<double> inputSlewIndices_;
-    std::vector<double> outputLoadIndices_;
-    double capacitance_ = 0.0;
-    std::string name_;
-
-    // Private helper for interpolation
-    double interpolateInternal(double inputSlewPs, double loadCap, bool isDelay) const;
-    
-    // #ifdef VALIDATE_OPTIMIZATIONS // Removed validation code
-    // // Original implementation kept for validation purposes
-    // double interpolateInternalOriginal(double inputSlewPs, double loadCap, bool isDelay) const;
-    // #endif // Removed validation code
-
 public:
-    friend class GateLibrary; // Allow GateLibrary to modify private members during parsing
+    // Constructor, getters, etc. (will be defined in Gate.cpp)
+    Gate() = default; // Default constructor might be useful
 
-    Gate(); // Constructor Declaration
+    // Member functions for parsing/setting data (example)
+    void setName(const std::string& name);
+    void setInputCapacitance(double capacitance);
+    void setInputSlewIndices(const std::vector<double>& indices); // Use vector for parsing flexibility
+    void setOutputLoadIndices(const std::vector<double>& indices); // Use vector for parsing flexibility
+    void setDelayTable(const std::vector<double>& values); // Use vector for parsing flexibility
+    void setSlewTable(const std::vector<double>& values);   // Use vector for parsing flexibility
 
-    // --- Getters ---
-    double getCapacitance() const;
+    // Getters
     const std::string& getName() const;
+    double getInputCapacitance() const;
+    int getNumInputs() const; // Helper to extract number of inputs from name like NAND2, NAND3 etc.
 
-    // --- Public interface for interpolation ---
-    double interpolateDelay(double inputSlewPs, double loadCap) const;
-    double interpolateSlew(double inputSlewPs, double loadCap) const;
-    
-    // #ifdef VALIDATE_OPTIMIZATIONS // Removed validation code
-    // // Validation function to verify optimization correctness
-    // bool validateInterpolation() const;
-    // #endif // Removed validation code
+    // Core NLDM functionality
+    double getDelay(double inputSlew, double outputLoad) const;
+    double getOutputSlew(double inputSlew, double outputLoad) const;
 
-    // Method to check if gate data seems complete (basic check)
-    bool isComplete() const;
+    // Accessors for parsed data (for validation/debugging)
+    const std::array<double, Constants::NLDM_TABLE_DIMENSION>& getInputSlewIndices() const;
+    const std::array<double, Constants::NLDM_TABLE_DIMENSION>& getOutputLoadIndices() const;
+    const std::array<std::array<double, Constants::NLDM_TABLE_DIMENSION>, Constants::NLDM_TABLE_DIMENSION>& getDelayTable() const;
+    const std::array<std::array<double, Constants::NLDM_TABLE_DIMENSION>, Constants::NLDM_TABLE_DIMENSION>& getSlewTable() const;
 
-    const std::vector<std::vector<double>>& getDelayTable() const;
-    const std::vector<std::vector<double>>& getSlewTable() const;
-    const std::vector<double>& getInputSlewIndices() const;
-    const std::vector<double>& getOutputLoadIndices() const;
+private:
+    // Member variables
+    std::string name_;
+    double inputCapacitance_ = 0.0;
 
+    // Using std::array for fixed-size 7x7 tables as discussed
+    std::array<double, Constants::NLDM_TABLE_DIMENSION> inputSlewIndices_{};
+    std::array<double, Constants::NLDM_TABLE_DIMENSION> outputLoadIndices_{};
+
+    std::array<std::array<double, Constants::NLDM_TABLE_DIMENSION>, Constants::NLDM_TABLE_DIMENSION> delayTable_{};
+    std::array<std::array<double, Constants::NLDM_TABLE_DIMENSION>, Constants::NLDM_TABLE_DIMENSION> slewTable_{};
+
+    // Helper for interpolation
+    double interpolate(const std::array<std::array<double, Constants::NLDM_TABLE_DIMENSION>, Constants::NLDM_TABLE_DIMENSION>& table,
+                       double inputSlew, double outputLoad) const;
+
+    // Helper to find table indices (implementation detail)
+    std::pair<size_t, size_t> findTableIndices(const std::array<double, Constants::NLDM_TABLE_DIMENSION>& indices, double value) const;
 };
-
-#endif // GATE_H

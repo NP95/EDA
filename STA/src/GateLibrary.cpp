@@ -1,202 +1,451 @@
-// src/GateLibrary.cpp
 #include "GateLibrary.hpp"
-#include "Gate.hpp"
-#include "Utils.hpp"
-#include "Debug.hpp"
-
-#include <fstream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <algorithm>
+#include "Constants.hpp"
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
-#include <iomanip>
+#include <algorithm>
+#include <cctype> // for isspace
+#include <iomanip> // For std::setprecision, std::fixed
+#include <ostream> // For std::ostream
 
-// --- Static Helper Function Definition ---
-// Parses accumulated values string into the table
-static void parseValuesString(const std::string& valuesContent,
-                              std::vector<std::vector<double>>& table,
-                              const std::string& tableName,
-                              const std::string& gateName)
-{
-    const size_t expectedRows = TABLE_DIM;
-    const size_t expectedCols = TABLE_DIM;
-    table.assign(expectedRows, std::vector<double>(expectedCols, 0.0)); // Initialize
+// Helper to trim leading/trailing whitespace and comments
+std::string GateLibrary::cleanLine(const std::string& line) {
+    std::string cleaned;
+    size_t commentPos = line.find("/*"); // Basic comment handling
+    if (commentPos != std::string::npos) {
+        cleaned = line.substr(0, commentPos);
+    } else {
+        cleaned = line;
+    }
 
-    // Clean up accumulated string (remove quotes, backslashes) - Important!
-    std::string cleaned_values = valuesContent;
-    cleaned_values.erase(std::remove(cleaned_values.begin(), cleaned_values.end(), '\"'), cleaned_values.end());
-    cleaned_values.erase(std::remove(cleaned_values.begin(), cleaned_values.end(), '\\'), cleaned_values.end());
+    // Trim leading whitespace
+    cleaned.erase(cleaned.begin(), std::find_if(cleaned.begin(), cleaned.end(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }));
+    // Trim trailing whitespace
+    cleaned.erase(std::find_if(cleaned.rbegin(), cleaned.rend(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }).base(), cleaned.end());
 
-    std::istringstream valueStream(cleaned_values);
-    std::string valueToken;
-    size_t row = 0;
-    size_t col = 0;
-    int valuesParsed = 0;
+    return cleaned;
+}
 
-    while (std::getline(valueStream, valueToken, ',')) {
-        std::string trimmedToken = Utils::trim(valueToken);
-        if (!trimmedToken.empty()) {
-            valuesParsed++;
-            if (row < expectedRows && col < expectedCols) {
-                try {
-                   table[row][col] = Utils::stringToDouble(trimmedToken, tableName + " value (row " + std::to_string(row) + ")");
-                } catch (const std::runtime_error& e) {
-                    STA_WARN("Value parse error: " + std::string(e.what())); table[row][col] = 0.0; }
-            } else if (row < expectedRows) { STA_WARN("Extra value ignored for " + tableName); }
-            col++;
-            if (col == expectedCols) { row++; col = 0; }
+// Modified: Parses values directly from the provided line string
+std::vector<double> GateLibrary::parseIndexValues(const std::string& line) {
+    std::vector<double> values;
+    size_t firstQuote = line.find('"');
+    size_t lastQuote = line.rfind('"');
+    if (firstQuote != std::string::npos && lastQuote != std::string::npos && firstQuote != lastQuote) {
+        std::string data = line.substr(firstQuote + 1, lastQuote - firstQuote - 1);
+        std::stringstream ss(data);
+        double val;
+        char comma; // To consume commas
+        while (ss >> val) {
+            values.push_back(val);
+            if (!(ss >> comma)) { // Consume comma, break if no more
+                 break;
+            }
+        }
+    } else {
+         std::cerr << "Warning: Could not parse index values from line: " << line << std::endl;
+    }
+    if (values.size() != Constants::NLDM_TABLE_DIMENSION) {
+         std::cerr << "Warning: Parsed " << values.size() << " index values, expected " << Constants::NLDM_TABLE_DIMENSION << " for line: " << line << std::endl;
+    }
+    return values;
+}
+
+// Complete overhaul of parseTableValues to match reference solution approach
+std::vector<double> GateLibrary::parseTableValues(std::ifstream& fileStream, const std::string& firstLine) {
+    std::vector<double> values;
+    values.reserve(Constants::NLDM_TABLE_DIMENSION * Constants::NLDM_TABLE_DIMENSION);
+    
+    std::string line = firstLine; // Start with the first line that was already read
+    int row = 0;
+
+    // Process the first row from the firstLine that contains "values ("
+    if (!line.empty()) {
+        // Check if "values (" is in the line and extract the data
+        size_t startPos = line.find("values (");
+        if (startPos != std::string::npos) {
+            // Extract only the part after "values ("
+            std::string firstRowData = line.substr(startPos + 8);
+            
+            // Remove quotes and backslashes
+            firstRowData.erase(std::remove(firstRowData.begin(), firstRowData.end(), '\"'), firstRowData.end());
+            firstRowData.erase(std::remove(firstRowData.begin(), firstRowData.end(), '\\'), firstRowData.end());
+            
+            // Parse values
+            std::istringstream ss(firstRowData);
+            std::string value;
+            int col = 0;
+            
+            while (col < Constants::NLDM_TABLE_DIMENSION && std::getline(ss, value, ',')) {
+                // Clean up the value
+                value.erase(std::remove(value.begin(), value.end(), ' '), value.end());
+                value.erase(std::remove(value.begin(), value.end(), '\t'), value.end());
+                
+                if (!value.empty()) {
+                    try {
+                        double val = std::stod(value);
+                        values.push_back(val);
+                        col++;
+                    } catch (const std::exception& e) {
+                        // Keep error message for actual conversion problems
+                        std::cerr << "Error converting first row value: " << value << " - " << e.what() << std::endl;
+                    }
+                }
+            }
+            
+            if (col > 0) {
+                row++;
+            }
         }
     }
-     if (row != expectedRows || col != 0) { STA_WARN("Parsed " + std::to_string(row) + " rows for " + tableName + ". Expected 7x7."); }
-     else { STA_TRACE("    Successfully parsed " + std::to_string(valuesParsed) + " values into 7x7 table for " + tableName); }
 
-    // --- DEBUG PRINT ---
-    if (tableName == "output_slew") { /* keep debug print */
-        std::ostringstream slewTrace; slewTrace << std::fixed << std::setprecision(8); slewTrace << "    DEBUG: Parsed Slew Table Content for " << gateName << " (Sample):\n";
-        if (table.size() > 2 && !table[1].empty() && table[1].size() > 2) { slewTrace << "      table[0][0]=" << table[0][0] << ", table[1][1]=" << table[1][1] << ", table[2][2]=" << table[2][2]; }
-        else { slewTrace << "      Table too small."; } STA_TRACE(slewTrace.str());
+    // Now read and process the remaining rows
+    bool insideValues = true;
+    while (insideValues && row < Constants::NLDM_TABLE_DIMENSION && std::getline(fileStream, line)) {
+        // Check if this is the end of the values section
+        if (line.find(");") != std::string::npos) {
+            insideValues = false;
+            // We still need to process this line if it contains values
+        }
+        
+        // Remove quotes and backslashes from line
+        line.erase(std::remove(line.begin(), line.end(), '\"'), line.end());
+        line.erase(std::remove(line.begin(), line.end(), '\\'), line.end());
+        
+        // Process this line
+        std::istringstream valuestream(line);
+        std::string value;
+        int col = 0;
+        
+        while (col < Constants::NLDM_TABLE_DIMENSION && std::getline(valuestream, value, ',')) {
+            // Remove spaces from the value
+            value.erase(std::remove(value.begin(), value.end(), ' '), value.end());
+            value.erase(std::remove(value.begin(), value.end(), '\t'), value.end());
+            
+            if (!value.empty()) {
+                try {
+                    double val = std::stod(value);
+                    values.push_back(val);
+                    col++;
+                } catch (const std::exception& e) {
+                    // Keep error message for actual conversion problems
+                    std::cerr << "Error converting value: " << value << " - " << e.what() << std::endl;
+                }
+            }
+        }
+        
+        // Only increment row counter if we read some data
+        if (col > 0) {
+            row++;
+        }
+    }
+    
+    // Check if we've parsed the correct number of values
+    if (values.size() != Constants::NLDM_TABLE_DIMENSION * Constants::NLDM_TABLE_DIMENSION) {
+        // Keep this error check
+        std::cerr << "Error: Parsed " << values.size() << " values, expected " 
+                  << (Constants::NLDM_TABLE_DIMENSION * Constants::NLDM_TABLE_DIMENSION) << std::endl;
+    }
+    
+    return values;
+}
+
+void GateLibrary::parseCell(std::ifstream& fileStream, const std::string& cellName) {
+    Gate currentGate;
+    currentGate.setName(cellName);
+    std::string line;
+    double capacitance = 0.0; // Used temporarily
+    std::vector<double> delayInputSlewIndices, delayOutputLoadIndices, delayTable;
+    std::vector<double> slewInputSlewIndices, slewOutputLoadIndices, slewTable; // Separate for slew
+
+    // Keep track of what has been parsed within this cell definition
+    bool parsedInputCap = false;
+    // Delay Table Flags
+    bool inDelayBlock = false; // Flag to know if we are inside cell_delay { ... }
+    bool parsedDelayInputSlewIndices = false;
+    bool parsedDelayOutputLoadIndices = false;
+    bool parsedDelayTable = false;
+    // Slew Table Flags
+    bool inSlewBlock = false; // Flag to know if we are inside output_slew { ... }
+    bool parsedSlewInputSlewIndices = false;
+    bool parsedSlewOutputLoadIndices = false;
+    bool parsedSlewTable = false;
+
+    int braceLevel = 1; // Started inside cell { ... }
+
+    while (braceLevel > 0 && std::getline(fileStream, line)) {
+        // Track brace level to know when we're exiting the cell
+        // Important: Need to handle braces correctly for nested blocks like cell_delay/output_slew
+        // Simple counting might not be enough if blocks aren't closed properly, but is typical for .lib
+        braceLevel += std::count(line.begin(), line.end(), '{');
+        braceLevel -= std::count(line.begin(), line.end(), '}');
+        
+        // If braceLevel drops to 0, we've exited the cell block
+        if (braceLevel <= 0) {
+             break; // Exit loop, cell definition finished
+        }
+
+        std::string cleaned = cleanLine(line);
+        if (cleaned.empty()) {
+             continue;
+        }
+
+        // --- Top Level Cell Parsing ---
+        if (!inDelayBlock && !inSlewBlock) {
+            if (!parsedInputCap && cleaned.find("capacitance") != std::string::npos) {
+                size_t colonPos = cleaned.find(':');
+                if (colonPos != std::string::npos) {
+                    std::string valueStr = cleaned.substr(colonPos + 1);
+                    valueStr.erase(std::remove(valueStr.begin(), valueStr.end(), ';'), valueStr.end());
+                    valueStr.erase(std::remove_if(valueStr.begin(), valueStr.end(), ::isspace), valueStr.end());
+                    try {
+                        capacitance = std::stod(valueStr);
+                        currentGate.setInputCapacitance(capacitance);
+                        parsedInputCap = true;
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error converting capacitance value: " << valueStr << " - " << e.what() << std::endl;
+                    }
+                }
+            } else if (cleaned.find("cell_delay(") != std::string::npos) {
+                inDelayBlock = true;
+                // Reset flags specific to this block just in case
+                parsedDelayInputSlewIndices = false;
+                parsedDelayOutputLoadIndices = false;
+                parsedDelayTable = false;
+            } else if (cleaned.find("output_slew(") != std::string::npos) {
+                inSlewBlock = true;
+                // Reset flags specific to this block
+                parsedSlewInputSlewIndices = false;
+                parsedSlewOutputLoadIndices = false;
+                parsedSlewTable = false;
+            }
+        // --- Inside cell_delay Block --- 
+        } else if (inDelayBlock) {
+            if (!parsedDelayInputSlewIndices && cleaned.find("index_1 (") != std::string::npos) {
+                 delayInputSlewIndices = parseIndexValues(cleaned);
+                 if (delayInputSlewIndices.size() == Constants::NLDM_TABLE_DIMENSION) {
+                     currentGate.setInputSlewIndices(delayInputSlewIndices); // Assuming same indices for both
+                     parsedDelayInputSlewIndices = true;
+                 } else {
+                     std::cerr << "Error: Failed to parse correct number of delay input slew indices for " << cellName << std::endl;
+                 }
+            } else if (!parsedDelayOutputLoadIndices && cleaned.find("index_2 (") != std::string::npos) {
+                delayOutputLoadIndices = parseIndexValues(cleaned);
+                if (delayOutputLoadIndices.size() == Constants::NLDM_TABLE_DIMENSION) {
+                    currentGate.setOutputLoadIndices(delayOutputLoadIndices); // Assuming same indices for both
+                    parsedDelayOutputLoadIndices = true;
+                 } else {
+                     std::cerr << "Error: Failed to parse correct number of delay output load indices for " << cellName << std::endl;
+                 }
+            } else if (!parsedDelayTable && cleaned.find("values (") != std::string::npos) {
+                 delayTable = parseTableValues(fileStream, cleaned);
+                 if (delayTable.size() == Constants::NLDM_TABLE_DIMENSION * Constants::NLDM_TABLE_DIMENSION) {
+                     currentGate.setDelayTable(delayTable);
+                     parsedDelayTable = true;
+                 } else {
+                     std::cerr << "Error: Failed to parse correct number of delay table values for " << cellName << std::endl;
+                 }
+            } else if (cleaned.find("}") != std::string::npos && parsedDelayTable) {
+                // Simplistic block exit detection - might need improvement if braces are complex
+                inDelayBlock = false; 
+            }
+        // --- Inside output_slew Block ---
+        } else if (inSlewBlock) {
+            if (!parsedSlewInputSlewIndices && cleaned.find("index_1 (") != std::string::npos) {
+                 slewInputSlewIndices = parseIndexValues(cleaned); // Parse, even if same as delay
+                 if (slewInputSlewIndices.size() == Constants::NLDM_TABLE_DIMENSION) {
+                      // Optional: Verify they match delayInputSlewIndices if required by spec
+                     // currentGate.setInputSlewIndices(slewInputSlewIndices); // Already set from delay block ideally
+                     parsedSlewInputSlewIndices = true;
+                 } else {
+                     std::cerr << "Error: Failed to parse correct number of slew input slew indices for " << cellName << std::endl;
+                 }
+            } else if (!parsedSlewOutputLoadIndices && cleaned.find("index_2 (") != std::string::npos) {
+                slewOutputLoadIndices = parseIndexValues(cleaned); // Parse, even if same as delay
+                if (slewOutputLoadIndices.size() == Constants::NLDM_TABLE_DIMENSION) {
+                    // Optional: Verify they match delayOutputLoadIndices if required by spec
+                    // currentGate.setOutputLoadIndices(slewOutputLoadIndices); // Already set from delay block ideally
+                    parsedSlewOutputLoadIndices = true;
+                 } else {
+                     std::cerr << "Error: Failed to parse correct number of slew output load indices for " << cellName << std::endl;
+                 }
+            } else if (!parsedSlewTable && cleaned.find("values (") != std::string::npos) {
+                 slewTable = parseTableValues(fileStream, cleaned);
+                 if (slewTable.size() == Constants::NLDM_TABLE_DIMENSION * Constants::NLDM_TABLE_DIMENSION) {
+                     currentGate.setSlewTable(slewTable);
+                     parsedSlewTable = true;
+                 } else {
+                     std::cerr << "Error: Failed to parse correct number of slew table values for " << cellName << std::endl;
+                 }
+            } else if (cleaned.find("}") != std::string::npos && parsedSlewTable) {
+                // Simplistic block exit detection
+                inSlewBlock = false;
+            }
+        }
+    }
+
+    // Check if all required data was parsed successfully
+    // Now includes checking the slew table flag
+    bool success = parsedInputCap && 
+                   parsedDelayInputSlewIndices && parsedDelayOutputLoadIndices && parsedDelayTable &&
+                   parsedSlewInputSlewIndices && parsedSlewOutputLoadIndices && parsedSlewTable;
+                   
+    if (success) {
+        // Add the gate to our library
+        gates_[cellName] = currentGate;
+    } else {
+        std::cerr << "Warning: Cell " << cellName << " was not fully parsed. Missing: " 
+                  << (!parsedInputCap ? "capacitance " : "")
+                  << (!parsedDelayInputSlewIndices ? "delay_index1 " : "")
+                  << (!parsedDelayOutputLoadIndices ? "delay_index2 " : "")
+                  << (!parsedDelayTable ? "delay_table " : "")
+                  << (!parsedSlewInputSlewIndices ? "slew_index1 " : "")
+                  << (!parsedSlewOutputLoadIndices ? "slew_index2 " : "")
+                  << (!parsedSlewTable ? "slew_table " : "")
+                  << std::endl;
     }
 }
 
+bool GateLibrary::parseLibertyFile(const std::string& filename) {
+    std::ifstream fileStream(filename);
+    if (!fileStream.is_open()) {
+        std::cerr << "Error: Could not open liberty file: " << filename << std::endl;
+        return false;
+    }
 
-// --- Other Member Function Definitions ---
-void GateLibrary::parseCellHeader(const std::string& line, std::string& currentGateName, Gate& currentGate) {
-    size_t openParen = line.find('('); size_t closeParen = line.find(')');
-    if (openParen == std::string::npos || closeParen == std::string::npos || closeParen < openParen) { throw std::runtime_error("Malformed cell header line: " + line); }
-    currentGateName = Utils::trim(line.substr(openParen + 1, closeParen - openParen - 1));
-    if (currentGateName.empty()) { throw std::runtime_error("Empty gate name found in line: " + line); }
-    currentGate.name_ = currentGateName; STA_TRACE("    Parsed Cell Name: " + currentGateName);
-}
-void GateLibrary::parseCapacitance(const std::string& line, Gate& currentGate) {
-    size_t colonPos = line.find(':'); if (colonPos == std::string::npos) { throw std::runtime_error("Malformed capacitance line: " + line); }
-    std::string valStr = Utils::trim(line.substr(colonPos + 1)); if (!valStr.empty() && valStr.back() == ';') { valStr.pop_back(); }
-    valStr = Utils::trim(valStr); currentGate.capacitance_ = Utils::stringToDouble(valStr, "capacitance"); STA_TRACE("    Parsed Capacitance: " + std::to_string(currentGate.capacitance_));
-}
-bool GateLibrary::hasGate(const std::string& name) const { return gates_.count(name) > 0; }
-const Gate& GateLibrary::getGate(const std::string& name) const {
-    try { return gates_.at(name); } catch (const std::out_of_range& oor) { STA_ERROR("Gate type '" + name + "' not found."); throw std::runtime_error("Gate type '" + name + "' not found."); }
-}
-void GateLibrary::parseIndex(const std::string& line, std::vector<double>& indexVector, const std::string& indexName) {
-    size_t openParen = line.find('('); size_t closeParen = line.find_last_of(')');
-    if (openParen == std::string::npos || closeParen == std::string::npos || closeParen < openParen) { throw std::runtime_error("Malformed " + indexName + " line: " + line); }
-    std::string valuesPart = line.substr(openParen + 1, closeParen - openParen - 1);
-    valuesPart.erase(std::remove(valuesPart.begin(), valuesPart.end(), '\"'), valuesPart.end()); indexVector.clear();
-    auto tokens = Utils::splitAndTrim(valuesPart, ','); STA_TRACE("    Parsing " + indexName + ": Found " + std::to_string(tokens.size()) + " tokens.");
-    for (const auto& token : tokens) { if (!token.empty()) { indexVector.push_back(Utils::stringToDouble(token, indexName + " value")); } }
-    STA_TRACE("    Successfully parsed " + std::to_string(indexVector.size()) + " index values for " + indexName);
-}
-
-
-// --- loadFromFile: Simple Flag-Based Logic ---
-void GateLibrary::loadFromFile(const std::string& filename) {
-    std::ifstream ifs(filename);
-    if (!ifs.is_open()) { throw std::runtime_error("Failed to open library file: " + filename); }
-
-    gates_.clear();
     std::string line;
-    std::string currentGateName = "";
-    Gate currentGate;
+    bool foundCellStart = false;
+    std::string cellName;
 
-    bool insideCell = false;
-    bool inDelayBlock = false;  // Flag: currently between cell_delay { and its }
-    bool inSlewBlock = false;   // Flag: currently between output_slew { and its }
-    bool readingValues = false; // Flag: currently reading multi-line values
+    while (std::getline(fileStream, line)) {
+        std::string cleaned = cleanLine(line);
 
-    int lineNumber = 0;
-    std::string accumulated_values;
+        // Skip empty or whitespace-only lines
+        if (cleaned.empty()) {
+            continue;
+        }
 
-    while (getline(ifs, line)) {
-        lineNumber++;
-        std::string trimmed_line = Utils::trim(line);
-        if (trimmed_line.empty() || trimmed_line.rfind("/*", 0) == 0) continue;
+        // Look for cell definition start
+        if (cleaned.find("cell (") != std::string::npos) {
+            size_t start = cleaned.find("(") + 1;
+            size_t end = cleaned.find(")", start);
+            if (end != std::string::npos) {
+                // Extract cell name without parentheses
+                cellName = cleaned.substr(start, end - start);
+                // Trim whitespace
+                cellName.erase(0, cellName.find_first_not_of(" \t\r\n"));
+                cellName.erase(cellName.find_last_not_of(" \t\r\n") + 1);
 
-        STA_TRACE("L" + std::to_string(lineNumber) + "| Line: " + trimmed_line);
-
-        try {
-            // --- Handle Multi-line Value Reading ---
-            if (readingValues) {
-                accumulated_values += " " + trimmed_line;
-                if (trimmed_line.find(");") != std::string::npos) {
-                    STA_TRACE("   -> Found end marker ');' for values block.");
-                    size_t endMarkerPos = accumulated_values.find(");");
-                    if (endMarkerPos != std::string::npos) { accumulated_values = accumulated_values.substr(0, endMarkerPos); }
-
-                    if (inDelayBlock) { parseValuesString(accumulated_values, currentGate.delayTable_, "cell_delay", currentGateName); }
-                    else if (inSlewBlock){ parseValuesString(accumulated_values, currentGate.slewTable_, "output_slew", currentGateName); }
-
-                    readingValues = false; accumulated_values = "";
-                    // NOTE: We don't reset inDelayBlock/inSlewBlock here, wait for '}'
+                if (!cellName.empty()) {
+                    foundCellStart = true;
+            } else {
+                    std::cerr << "Warning: Found cell definition but couldn't extract name." << std::endl;
                 }
-                continue; // Get next line
             }
+        }
 
-            // --- Normal Line Processing ---
-            if (!insideCell) {
-                if (trimmed_line.find("cell") == 0 && trimmed_line.find('(') != std::string::npos) {
-                    currentGate = Gate(); // Reset
-                    parseCellHeader(trimmed_line, currentGateName, currentGate);
-                    STA_DETAIL("   Parsing NEW Gate '" + currentGateName + "'");
-                    insideCell = true;
-                    inDelayBlock = false; inSlewBlock = false; // Reset context
-                }
-                // Ignore other lines outside cells
-            } else { // Inside a cell
-                if (trimmed_line == "}") {
-                    if (inDelayBlock || inSlewBlock) { // Closing brace for timing block
-                        STA_TRACE(" -> Timing group closing brace '}'.");
-                        inDelayBlock = false; inSlewBlock = false;
-                    } else { // Closing brace for cell
-                         STA_TRACE(" -> Cell closing brace '}'. Finalizing '" + currentGateName + "'.");
-                         if (!currentGateName.empty()) {
-                             if (currentGate.isComplete()) { gates_[currentGateName] = currentGate; STA_DETAIL("    -> Gate '" + currentGateName + "' stored."); }
-                             else { STA_WARN("    -> Gate '" + currentGateName + "' skipped (incomplete)."); }
-                         }
-                         currentGateName = ""; insideCell = false;
-                    }
-                } else if (trimmed_line.find("capacitance") != std::string::npos) {
-                    parseCapacitance(trimmed_line, currentGate);
-                } else if (trimmed_line.find("cell_delay") != std::string::npos) {
-                    STA_TRACE(" -> Found 'cell_delay' block start.");
-                    inDelayBlock = true; inSlewBlock = false;
-                } else if (trimmed_line.find("output_slew") != std::string::npos || trimmed_line.find("cell_rise") != std::string::npos || trimmed_line.find("cell_fall") != std::string::npos) {
-                    STA_TRACE(" -> Found 'output_slew' block start.");
-                    inDelayBlock = false; inSlewBlock = true;
-                } else if (trimmed_line.find("index_1") != std::string::npos) {
-                    // Parse indices only ONCE per cell, assume they apply to both
-                    if (currentGate.inputSlewIndices_.empty()) {
-                        parseIndex(trimmed_line, currentGate.inputSlewIndices_, "index_1");
-                    } else { STA_TRACE(" -> Ignoring duplicate index_1."); }
-                } else if (trimmed_line.find("index_2") != std::string::npos) {
-                     if (currentGate.outputLoadIndices_.empty()) {
-                        parseIndex(trimmed_line, currentGate.outputLoadIndices_, "index_2");
-                    } else { STA_TRACE(" -> Ignoring duplicate index_2."); }
-                } else if (trimmed_line.find("values") != std::string::npos) {
-                    if (inDelayBlock || inSlewBlock) { // Must be inside a known block
-                        readingValues = true;
-                        accumulated_values = "";
-                        size_t openParen = trimmed_line.find('(');
-                        if (openParen != std::string::npos) { accumulated_values += Utils::trim(trimmed_line.substr(openParen + 1)); }
-                        if (trimmed_line.find(");") != std::string::npos) { // Same line end
-                            STA_TRACE("   -> Found end marker ');' for values block on same line.");
-                            size_t endMarkerPos = accumulated_values.find(");");
-                            if(endMarkerPos != std::string::npos) { accumulated_values = accumulated_values.substr(0, endMarkerPos); }
-                            if (inDelayBlock) { parseValuesString(accumulated_values, currentGate.delayTable_, "cell_delay", currentGateName); }
-                            else { parseValuesString(accumulated_values, currentGate.slewTable_, "output_slew", currentGateName); }
-                            readingValues = false; accumulated_values = "";
-                            // isDelayBlock/isSlewBlock reset when '}' is found
-                        } // else multi-line handled at loop start
-                    } else { STA_WARN("Found 'values' outside known block context."); }
-                }
-                // Ignore other lines like timing block opening '{'
-            } // End insideCell logic
+        // If we found a cell definition, parse it
+        if (foundCellStart) {
+            parseCell(fileStream, cellName);
+            foundCellStart = false;
+        }
+    }
 
-        } catch (const std::exception& e) { /* ... error handling ... */ }
-    } // End while getline
-
-    // Final checks
-     if (insideCell) { STA_WARN("End of file reached while inside cell '" + currentGateName + "'."); }
-     if (gates_.empty()) { STA_ERROR("No valid gate definitions parsed."); throw std::runtime_error("No valid gate definitions parsed from: " + filename); }
-     else { STA_INFO("Library parsing complete. Successfully stored " + std::to_string(gates_.size()) + " gate definitions."); }
+    fileStream.close();
+    return !gates_.empty(); // Consider parsing successful if at least one gate was parsed
 }
+
+const Gate* GateLibrary::getGate(const std::string& gateName) const {
+    auto it = gates_.find(gateName);
+    if (it != gates_.end()) {
+        return &(it->second);
+    }
+    return nullptr; // Gate not found
+}
+
+double GateLibrary::getInverterInputCapacitance() const {
+    // Try INV first
+    auto invIt = gates_.find("INV");
+    if (invIt != gates_.end()) {
+        return invIt->second.getInputCapacitance();
+    }
+    
+    // Try NOT as fallback
+    auto notIt = gates_.find("NOT");
+    if (notIt != gates_.end()) {
+        return notIt->second.getInputCapacitance();
+    }
+    
+    // If neither exists, print warning and return a default value
+    std::cerr << "Warning: Neither INV nor NOT gate found in library." << std::endl;
+    return 0.0; // Default value
+}
+
+// Helper function to format and print index vectors (match original precision)
+void printIndexLine(std::ostream& out, const std::string& label, const std::array<double, Constants::NLDM_TABLE_DIMENSION>& indices, double scaleFactor) {
+    out << "\t\t\t\t" << label << " (\"";
+    // Use the globally set precision
+    for (size_t i = 0; i < indices.size(); ++i) {
+        out << indices[i] * scaleFactor << (i == indices.size() - 1 ? "" : ",");
+    }
+    out << "\");\n";
+}
+
+// Helper function to format and print table values (match original layout and precision)
+void printValuesBlock(std::ostream& out, const std::array<std::array<double, Constants::NLDM_TABLE_DIMENSION>, Constants::NLDM_TABLE_DIMENSION>& table, double scaleFactor) {
+    out << "\t\t\t\tvalues (\"";
+    // Use the globally set precision
+    for (size_t i = 0; i < table.size(); ++i) {
+        for (size_t j = 0; j < table[i].size(); ++j) {
+            out << table[i][j] * scaleFactor << (j == table[i].size() - 1 ? "" : ",");
+        }
+        if (i == table.size() - 1) {
+            out << "\");\n"; // Last line ends with ");
+    } else {
+            // Match original format exactly
+            out << "\", \\ \n"; 
+            out << "\t\t\t\t        \""; // Indentation for next line
+        }
+    }
+}
+
+void GateLibrary::dumpLibraryToStream(std::ostream& out) const {
+    out << std::fixed << std::setprecision(Constants::OUTPUT_PRECISION); // Set precision for output
+
+    // It might be nice to sort the gates by name for consistent output
+    std::vector<std::string> gateNames;
+    gateNames.reserve(gates_.size());
+    for (const auto& pair : gates_) {
+        gateNames.push_back(pair.first);
+    }
+    std::sort(gateNames.begin(), gateNames.end());
+
+    for (const auto& gateName : gateNames) {
+        const Gate& gate = gates_.at(gateName);
+        
+        out << "  cell (" << gate.getName() << ") {\n"; // Note: Original parser adds "2" to some names
+        out << "\t\t\tcapacitance\t\t: " << gate.getInputCapacitance() << ";\n";
+        
+        // Cell Delay
+        out << "\t\t\tcell_delay(Timing_7_7) {\n";
+        printIndexLine(out, "index_1", gate.getInputSlewIndices(), Constants::PICO_TO_NANO);
+        printIndexLine(out, "index_2", gate.getOutputLoadIndices(), 1.0); // Already in fF
+        printValuesBlock(out, gate.getDelayTable(), Constants::PICO_TO_NANO);
+        out << "\t\t\t}\n";
+
+        // Output Slew
+        out << "\t\t\toutput_slew(Timing_7_7) {\n";
+        printIndexLine(out, "index_1", gate.getInputSlewIndices(), Constants::PICO_TO_NANO);
+        printIndexLine(out, "index_2", gate.getOutputLoadIndices(), 1.0); // Already in fF
+        printValuesBlock(out, gate.getSlewTable(), Constants::PICO_TO_NANO);
+        out << "\t\t\t}\n";
+
+        out << "\t\t}\n\n"; // Closing brace for cell
+    }
+    out << std::defaultfloat; // Reset precision formatting
+}
+

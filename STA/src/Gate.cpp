@@ -1,129 +1,227 @@
-// Gate.cpp
-#include "Debug.hpp"
-#include <sstream> // Needed for std::ostringstream used in trace messages
-#include <string>  // Needed for std::to_string used in trace messages
-
 #include "Gate.hpp"
-#include <vector>
-#include <string>
-#include <cmath>
-#include <limits>
-#include <stdexcept>
-#include <algorithm>
-#include <iostream> // For std::cerr
+#include "Constants.hpp"
+#include <stdexcept> // For std::invalid_argument, std::out_of_range
+#include <algorithm> // For std::copy
+#include <iostream> // Temporary for debugging getNumInputs
 
-Gate::Gate() : delayTable_(TABLE_DIM, std::vector<double>(TABLE_DIM, 0.0)),
-               slewTable_(TABLE_DIM, std::vector<double>(TABLE_DIM, 0.0)) {}
-
-// --- Getter Implementations ---
-// ... getCapacitance, getName, getDelayTable etc. ...
-double Gate::getCapacitance() const { return capacitance_; }
-const std::string& Gate::getName() const { return name_; }
-const std::vector<std::vector<double>>& Gate::getDelayTable() const { return delayTable_; }
-const std::vector<std::vector<double>>& Gate::getSlewTable() const { return slewTable_; }
-const std::vector<double>& Gate::getInputSlewIndices() const { return inputSlewIndices_; }
-const std::vector<double>& Gate::getOutputLoadIndices() const { return outputLoadIndices_; }
-
-
-// --- isComplete Implementation (STRENGTHENED) ---
-bool Gate::isComplete() const {
-    // Check capacitance, non-empty indices, and table dimensions
-    bool indicesOk = !inputSlewIndices_.empty() && !outputLoadIndices_.empty() &&
-                     inputSlewIndices_.size() == TABLE_DIM &&
-                     outputLoadIndices_.size() == TABLE_DIM;
-    bool tablesOk = !delayTable_.empty() && delayTable_.size() == TABLE_DIM &&
-                    !delayTable_[0].empty() && delayTable_[0].size() == TABLE_DIM &&
-                    !slewTable_.empty() && slewTable_.size() == TABLE_DIM &&
-                    !slewTable_[0].empty() && slewTable_[0].size() == TABLE_DIM;
-
-    // You could add checks for non-zero values in tables if needed, but dimensions are a good start
-    return capacitance_ >= 0.0 && indicesOk && tablesOk;
+void Gate::setName(const std::string& name) {
+    name_ = name;
 }
 
-
-// --- Interpolation Implementations (Keep as is) ---
-double Gate::interpolateDelay(double inputSlewPs, double loadCap) const {
-    STA_TRACE("Enter interpolateDelay for " + name_ + " with Slew=" + std::to_string(inputSlewPs) + "ps, Load=" + std::to_string(loadCap) + "fF");
-    return interpolateInternal(inputSlewPs, loadCap, true);
+void Gate::setInputCapacitance(double capacitance) {
+    inputCapacitance_ = capacitance;
 }
 
-double Gate::interpolateSlew(double inputSlewPs, double loadCap) const {
-    STA_TRACE("Enter interpolateSlew for " + name_ + " with Slew=" + std::to_string(inputSlewPs) + "ps, Load=" + std::to_string(loadCap) + "fF");
-    return interpolateInternal(inputSlewPs, loadCap, false);
-}
-
-// #ifdef VALIDATE_OPTIMIZATIONS // Removed validation code
-/*
-// Original interpolation implementation for validation
-double Gate::interpolateInternalOriginal(...) {
-    // ... original code ...
-}
-
-// Validation function to ensure optimized interpolation matches original results
-bool Gate::validateInterpolation() const {
-    // ... validation code ...
-}
-*/
-// #endif // Removed validation code
-
-// --- Instrumented interpolateInternal (Keep optimized version) ---
-double Gate::interpolateInternal(double inputSlewPs, double loadCapFf, bool isDelay) const {
-    // Convert from ps to ns for table lookup
-    double inputSlewNs = inputSlewPs / 1000.0;
-    
-    // Get the appropriate table and indices
-    const auto& table = isDelay ? delayTable_ : slewTable_;
-    const auto& slewIndices = inputSlewIndices_;
-    const auto& capIndices = outputLoadIndices_;
-    
-    // Find slew indices - using upper_bound for consistency
-    auto slewIt = std::upper_bound(slewIndices.begin(), slewIndices.end(), inputSlewNs);
-    size_t slewIndex2 = std::min(static_cast<size_t>(std::distance(slewIndices.begin(), slewIt)), slewIndices.size() - 1);
-    size_t slewIndex1 = (slewIndex2 > 0) ? slewIndex2 - 1 : 0;
-    
-    // Find capacitance indices - using upper_bound for consistency
-    auto capIt = std::upper_bound(capIndices.begin(), capIndices.end(), loadCapFf);
-    size_t capIndex2 = std::min(static_cast<size_t>(std::distance(capIndices.begin(), capIt)), capIndices.size() - 1);
-    size_t capIndex1 = (capIndex2 > 0) ? capIndex2 - 1 : 0;
-    
-    // Get corner values for interpolation
-    double v11 = table[slewIndex1][capIndex1];
-    double v12 = table[slewIndex1][capIndex2];
-    double v21 = table[slewIndex2][capIndex1];
-    double v22 = table[slewIndex2][capIndex2];
-    
-    // Get bounds values for calculation
-    double t1 = slewIndices[slewIndex1];
-    double t2 = slewIndices[slewIndex2];
-    double c1 = capIndices[capIndex1];
-    double c2 = capIndices[capIndex2];
-    
-    // Detect edge case where indices are the same (exact lookup)
-    if (slewIndex1 == slewIndex2 && capIndex1 == capIndex2) {
-        // Direct value lookup
-        return v11 * 1000.0;  // Convert back to ps
+void Gate::setInputSlewIndices(const std::vector<double>& indices) {
+    if (indices.size() != Constants::NLDM_TABLE_DIMENSION) {
+        throw std::invalid_argument("Input slew indices vector size mismatch.");
     }
-    
-    // Compute weight factors directly
-    double tx = (slewIndex1 != slewIndex2) ? (inputSlewNs - t1) / (t2 - t1) : 0.0;
-    double cx = (capIndex1 != capIndex2) ? (loadCapFf - c1) / (c2 - c1) : 0.0;
-    
-    // Simplified bilinear interpolation formula using weights
-    double result;
-    if (slewIndex1 == slewIndex2) {
-        // Linear interpolation on capacitance only
-        result = v11 * (1 - cx) + v12 * cx;
-    } else if (capIndex1 == capIndex2) {
-        // Linear interpolation on slew only
-        result = v11 * (1 - tx) + v21 * tx;
+    // Convert units from ns (in file) to ps (internal)
+    for(size_t i = 0; i < Constants::NLDM_TABLE_DIMENSION; ++i) {
+        inputSlewIndices_[i] = indices[i] * Constants::NANO_TO_PICO;
+    }
+    // std::copy(indices.begin(), indices.end(), inputSlewIndices_.begin());
+}
+
+void Gate::setOutputLoadIndices(const std::vector<double>& indices) {
+    if (indices.size() != Constants::NLDM_TABLE_DIMENSION) {
+        throw std::invalid_argument("Output load indices vector size mismatch.");
+    }
+    // Units are fF in file, keep as fF internally for now
+     std::copy(indices.begin(), indices.end(), outputLoadIndices_.begin());
+}
+
+void Gate::setDelayTable(const std::vector<double>& values) {
+    const size_t expectedTotal = Constants::NLDM_TABLE_DIMENSION * Constants::NLDM_TABLE_DIMENSION; // 49
+
+    if (values.size() != expectedTotal) {
+        throw std::invalid_argument("Delay table values vector size mismatch. Expected " + std::to_string(expectedTotal) + ", got " + std::to_string(values.size()));
+    }
+    for (size_t i = 0; i < Constants::NLDM_TABLE_DIMENSION; ++i) {
+        for (size_t j = 0; j < Constants::NLDM_TABLE_DIMENSION; ++j) {
+            // Convert units from ns (in file) to ps (internal)
+            delayTable_[i][j] = values[i * Constants::NLDM_TABLE_DIMENSION + j] * Constants::NANO_TO_PICO;
+        }
+    }
+}
+
+void Gate::setSlewTable(const std::vector<double>& values) {
+    const size_t expectedTotal = Constants::NLDM_TABLE_DIMENSION * Constants::NLDM_TABLE_DIMENSION; // 49
+
+     if (values.size() != expectedTotal) {
+        throw std::invalid_argument("Slew table values vector size mismatch. Expected " + std::to_string(expectedTotal) + ", got " + std::to_string(values.size()));
+    }
+    for (size_t i = 0; i < Constants::NLDM_TABLE_DIMENSION; ++i) {
+        for (size_t j = 0; j < Constants::NLDM_TABLE_DIMENSION; ++j) {
+             // Convert units from ns (in file) to ps (internal)
+            slewTable_[i][j] = values[i * Constants::NLDM_TABLE_DIMENSION + j] * Constants::NANO_TO_PICO;
+        }
+    }
+}
+
+const std::string& Gate::getName() const {
+    return name_;
+}
+
+double Gate::getInputCapacitance() const {
+    // Return capacitance in fF (as stored)
+    return inputCapacitance_;
+}
+
+int Gate::getNumInputs() const {
+    // Handles BUFF, BUF, NOT, INV -> 1 input
+    if (name_ == "BUFF" || name_ == "BUF" || name_ == "NOT" || name_ == "INV") {
+        return 1;
+    }
+
+    // Extracts number from names like NAND2, NOR3, XOR2, AND4 etc.
+    size_t i = name_.length() - 1;
+    while (i > 0 && std::isdigit(name_[i])) {
+        i--;\
+    }
+
+    // If the last character wasn't a digit, or no digits found after type name
+    if (i == name_.length() - 1 || !std::isdigit(name_[i + 1])) {
+         // Assume 2 inputs if not specified (matches reference behavior implicitly)
+        // Or handle as error? Let's match ref for now.
+        // std::cerr << "Warning: Could not determine number of inputs for gate type '" << name_ << "'. Assuming 2." << std::endl;
+        return 2;
+    }
+
+    try {
+        return std::stoi(name_.substr(i + 1));
+    } catch (const std::exception& e) {
+        // Handle potential errors during conversion (e.g., overflow)
+         std::cerr << "Error parsing number of inputs for gate type '" << name_ << "': " << e.what() << std::endl;
+         return 2; // Default fallback
+    }
+}
+
+// --- Placeholder implementations for core logic --- 
+
+double Gate::getDelay(double inputSlew, double outputLoad) const {
+    // TODO: Implement interpolation
+    return interpolate(delayTable_, inputSlew, outputLoad);
+}
+
+double Gate::getOutputSlew(double inputSlew, double outputLoad) const {
+    // TODO: Implement interpolation
+    return interpolate(slewTable_, inputSlew, outputLoad);
+}
+
+std::pair<size_t, size_t> Gate::findTableIndices(const std::array<double, Constants::NLDM_TABLE_DIMENSION>& indices, double value) const {
+    // Clamp the value to the range of the indices array *only for finding the indices*
+    double clampedValue = std::max(indices.front(), std::min(value, indices.back()));
+
+    // Find the first index >= clampedValue using lower_bound
+    auto it = std::lower_bound(indices.begin(), indices.end(), clampedValue);
+
+    // Determine indices i1 and i2
+    size_t i2 = std::distance(indices.begin(), it);
+    size_t i1 = 0;
+
+    if (it == indices.begin()) {
+        // Value is less than or equal to the first index
+        i1 = 0;
+        i2 = 0; // Or 1 if we need a range? Ref logic implies using the same point.
+                // Let's check ref logic: it uses the same index if it's at the boundary.
+    } else if (it == indices.end()) {
+        // Value is greater than the last index
+        i1 = Constants::NLDM_TABLE_DIMENSION - 1;
+        i2 = Constants::NLDM_TABLE_DIMENSION - 1;
     } else {
-        // Full bilinear interpolation with precomputed weights
-        result = v11 * (1 - tx) * (1 - cx) + 
-                v21 * tx * (1 - cx) + 
-                v12 * (1 - tx) * cx + 
-                v22 * tx * cx;
+        // Value is between indices[i2-1] and indices[i2]
+        i1 = i2 - 1;
+        // i2 is already correct
+
+        // Handle exact match case
+        if (*it == clampedValue) {
+            i1 = i2;
+        }
     }
-    
-    // Convert back to picoseconds
-    return result * 1000.0;
+
+    // Ensure indices are within bounds (should be guaranteed by logic above, but double check)
+    i1 = std::min(i1, Constants::NLDM_TABLE_DIMENSION - 1);
+    i2 = std::min(i2, Constants::NLDM_TABLE_DIMENSION - 1);
+
+    return {i1, i2};
+}
+
+double Gate::interpolate(const std::array<std::array<double, Constants::NLDM_TABLE_DIMENSION>, Constants::NLDM_TABLE_DIMENSION>& table,
+                       double inputSlew, double outputLoad) const {
+    // Find indices for inputSlew (τ) and outputLoad (C)
+    // Remember: inputSlewIndices_ are in ps, outputLoadIndices_ are in fF
+    auto [tau_idx1, tau_idx2] = findTableIndices(inputSlewIndices_, inputSlew);
+    auto [cap_idx1, cap_idx2] = findTableIndices(outputLoadIndices_, outputLoad);
+
+    // Retrieve the index values (t1, t2, C1, C2) using the found indices
+    double t1 = inputSlewIndices_[tau_idx1];
+    double t2 = inputSlewIndices_[tau_idx2];
+    double C1 = outputLoadIndices_[cap_idx1];
+    double C2 = outputLoadIndices_[cap_idx2];
+
+    // Retrieve the 4 corner data values (v11, v12, v21, v22) from the table
+    double v11 = table[tau_idx1][cap_idx1];
+    double v12 = table[tau_idx1][cap_idx2];
+    double v21 = table[tau_idx2][cap_idx1];
+    double v22 = table[tau_idx2][cap_idx2];
+
+    // Use the ORIGINAL unclamped inputSlew (τ) and outputLoad (C) for interpolation
+    double C = outputLoad; // Use original outputLoad (in fF)
+    double tau = inputSlew; // Use original inputSlew (in ps)
+
+    // Handle cases where indices are the same (value lies exactly on a grid line or point)
+    if (tau_idx1 == tau_idx2 && cap_idx1 == cap_idx2) {
+        return v11; // Exact match on a grid point
+    }
+
+    // Linear interpolation if one dimension matches
+    if (tau_idx1 == tau_idx2) { // Input slew matches an index line
+        if (C2 == C1) return v11; // On a grid point (already handled) or indices are identical
+        return v11 + (v12 - v11) * (C - C1) / (C2 - C1);
+    }
+    if (cap_idx1 == cap_idx2) { // Load capacitance matches an index line
+        if (t2 == t1) return v11; // On a grid point (already handled) or indices are identical
+        return v11 + (v21 - v11) * (tau - t1) / (t2 - t1);
+    }
+
+    // Bilinear interpolation formula
+    double denominator = (C2 - C1) * (t2 - t1);
+    if (denominator == 0.0) {
+        // This should not happen if indices are different and distinct.
+        // If it does, it implies C1=C2 or t1=t2, which should have been caught above.
+        std::cerr << "Warning: Interpolation denominator is zero unexpectedly for " << name_
+                  << " with slew=" << tau << "ps, load=" << C << "fF. Indices: t[" << tau_idx1 << "," << tau_idx2
+                  << "], C[" << cap_idx1 << "," << cap_idx2 << "]. Values: t1=" << t1 << ", t2=" << t2
+                  << ", C1=" << C1 << ", C2=" << C2 << std::endl;
+        // Fallback: return the value at the 'lower-left' corner (v11)
+        return v11;
+    }
+
+    double interpolatedValue = (
+        v11 * (C2 - C) * (t2 - tau) + // v11 * Area_Opposite_Corner22
+        v12 * (C - C1) * (t2 - tau) + // v12 * Area_Opposite_Corner21
+        v21 * (C2 - C) * (tau - t1) + // v21 * Area_Opposite_Corner12
+        v22 * (C - C1) * (tau - t1)   // v22 * Area_Opposite_Corner11
+    ) / denominator;
+
+    return interpolatedValue;
+}
+
+// --- Accessors for debugging/validation ---
+
+const std::array<double, Constants::NLDM_TABLE_DIMENSION>& Gate::getInputSlewIndices() const {
+    return inputSlewIndices_;
+}
+
+const std::array<double, Constants::NLDM_TABLE_DIMENSION>& Gate::getOutputLoadIndices() const {
+    return outputLoadIndices_;
+}
+
+const std::array<std::array<double, Constants::NLDM_TABLE_DIMENSION>, Constants::NLDM_TABLE_DIMENSION>& Gate::getDelayTable() const {
+    return delayTable_;
+}
+
+const std::array<std::array<double, Constants::NLDM_TABLE_DIMENSION>, Constants::NLDM_TABLE_DIMENSION>& Gate::getSlewTable() const {
+    return slewTable_;
 }
