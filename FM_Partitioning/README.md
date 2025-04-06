@@ -108,6 +108,38 @@ Example:
 ./checker_linux [input_file] [output_file]
 ```
 
+### Testing and Regression (`run_all_tests.sh`)
+
+A helper script `run_all_tests.sh` is provided to automate testing across all benchmarks included in the `input_pa1/` directory.
+
+**Functionality:**
+
+1.  Iterates through each `input_pa1/input_*.dat` file.
+2.  Runs the partitioner (expects Release build at `build/Release/FM_Partitioner`).
+3.  Executes the `checker_linux` program against the generated output.
+4.  Measures the runtime of the partitioner using the `time` command.
+5.  Parses the cut size from the generated output file.
+6.  Logs the status (PASS/FAIL), runtime (in milliseconds), and cut size for each benchmark.
+7.  Generates a timestamped summary file named `run_summary_YYYYMMDD_HHMMSS.csv` in the project root.
+
+**CSV Summary Format:**
+
+The generated CSV file contains the following columns:
+
+```csv
+Benchmark,Status,Runtime(ms),CutSize
+```
+
+**Usage:**
+
+Ensure the project is built in Release mode first.
+
+```bash
+./run_all_tests.sh
+```
+
+This script is useful for quickly verifying correctness and tracking performance regressions across code changes by comparing the summary CSV files from different runs.
+
 ## Algorithm Details
 
 The F-M algorithm implementation uses the following key approaches:
