@@ -1,5 +1,6 @@
 #include "Gate.hpp"
 #include "Constants.hpp"
+#include "Debug.hpp"
 #include <stdexcept> // For std::invalid_argument, std::out_of_range
 #include <algorithm> // For std::copy
 #include <iostream> // Temporary for debugging getNumInputs
@@ -109,50 +110,65 @@ double Gate::getOutputSlew(double inputSlew, double outputLoad) const {
     return interpolate(slewTable_, inputSlew, outputLoad);
 }
 
-std::pair<size_t, size_t> Gate::findTableIndices(const std::array<double, Constants::NLDM_TABLE_DIMENSION>& indices, double value) const {
-    // Clamp the value to the range of the indices array *only for finding the indices*
-    double clampedValue = std::max(indices.front(), std::min(value, indices.back()));
-
-    // Find the first index >= clampedValue using lower_bound
-    auto it = std::lower_bound(indices.begin(), indices.end(), clampedValue);
-
-    // Determine indices i1 and i2
-    size_t i2 = std::distance(indices.begin(), it);
-    size_t i1 = 0;
-
-    if (it == indices.begin()) {
-        // Value is less than or equal to the first index
-        i1 = 0;
-        i2 = 0; // Or 1 if we need a range? Ref logic implies using the same point.
-                // Let's check ref logic: it uses the same index if it's at the boundary.
-    } else if (it == indices.end()) {
-        // Value is greater than the last index
-        i1 = Constants::NLDM_TABLE_DIMENSION - 1;
-        i2 = Constants::NLDM_TABLE_DIMENSION - 1;
-    } else {
-        // Value is between indices[i2-1] and indices[i2]
-        i1 = i2 - 1;
-        // i2 is already correct
-
-        // Handle exact match case
-        if (*it == clampedValue) {
-            i1 = i2;
-        }
-    }
-
-    // Ensure indices are within bounds (should be guaranteed by logic above, but double check)
-    i1 = std::min(i1, Constants::NLDM_TABLE_DIMENSION - 1);
-    i2 = std::min(i2, Constants::NLDM_TABLE_DIMENSION - 1);
-
-    return {i1, i2};
-}
-
 double Gate::interpolate(const std::array<std::array<double, Constants::NLDM_TABLE_DIMENSION>, Constants::NLDM_TABLE_DIMENSION>& table,
                        double inputSlew, double outputLoad) const {
-    // Find indices for inputSlew (τ) and outputLoad (C)
-    // Remember: inputSlewIndices_ are in ps, outputLoadIndices_ are in fF
-    auto [tau_idx1, tau_idx2] = findTableIndices(inputSlewIndices_, inputSlew);
-    auto [cap_idx1, cap_idx2] = findTableIndices(outputLoadIndices_, outputLoad);
+    size_t tau_idx1 = 0, tau_idx2 = 0, cap_idx1 = 0, cap_idx2 = 0;
+
+    // --- Inlined findTableIndices logic for inputSlew (tau) ---
+    {
+        const auto& indices = inputSlewIndices_;
+        double value = inputSlew;
+        // Clamp the value to the range of the indices array *only for finding the indices*
+        double clampedValue = std::max(indices.front(), std::min(value, indices.back()));
+        // Find the first index >= clampedValue using lower_bound
+        auto it = std::lower_bound(indices.begin(), indices.end(), clampedValue);
+        // Determine indices i1 and i2
+        size_t i2_tau = std::distance(indices.begin(), it);
+        size_t i1_tau = 0;
+        if (it == indices.begin()) {
+            i1_tau = 0;
+            i2_tau = 0;
+        } else if (it == indices.end()) {
+            i1_tau = Constants::NLDM_TABLE_DIMENSION - 1;
+            i2_tau = Constants::NLDM_TABLE_DIMENSION - 1;
+        } else {
+            i1_tau = i2_tau - 1;
+            if (*it == clampedValue) {
+                i1_tau = i2_tau;
+            }
+        }
+        tau_idx1 = std::min(i1_tau, Constants::NLDM_TABLE_DIMENSION - 1);
+        tau_idx2 = std::min(i2_tau, Constants::NLDM_TABLE_DIMENSION - 1);
+    }
+    // --- End of inlined logic for tau ---
+
+    // --- Inlined findTableIndices logic for outputLoad (C) ---
+    {
+        const auto& indices = outputLoadIndices_;
+        double value = outputLoad;
+        // Clamp the value to the range of the indices array *only for finding the indices*
+        double clampedValue = std::max(indices.front(), std::min(value, indices.back()));
+        // Find the first index >= clampedValue using lower_bound
+        auto it = std::lower_bound(indices.begin(), indices.end(), clampedValue);
+        // Determine indices i1 and i2
+        size_t i2_cap = std::distance(indices.begin(), it);
+        size_t i1_cap = 0;
+        if (it == indices.begin()) {
+            i1_cap = 0;
+            i2_cap = 0;
+        } else if (it == indices.end()) {
+            i1_cap = Constants::NLDM_TABLE_DIMENSION - 1;
+            i2_cap = Constants::NLDM_TABLE_DIMENSION - 1;
+        } else {
+            i1_cap = i2_cap - 1;
+            if (*it == clampedValue) {
+                i1_cap = i2_cap;
+            }
+        }
+        cap_idx1 = std::min(i1_cap, Constants::NLDM_TABLE_DIMENSION - 1);
+        cap_idx2 = std::min(i2_cap, Constants::NLDM_TABLE_DIMENSION - 1);
+    }
+    // --- End of inlined logic for C ---
 
     // Retrieve the index values (t1, t2, C1, C2) using the found indices
     double t1 = inputSlewIndices_[tau_idx1];
@@ -167,43 +183,98 @@ double Gate::interpolate(const std::array<std::array<double, Constants::NLDM_TAB
     double v22 = table[tau_idx2][cap_idx2];
 
     // Use the ORIGINAL unclamped inputSlew (τ) and outputLoad (C) for interpolation
-    double C = outputLoad; // Use original outputLoad (in fF)
-    double tau = inputSlew; // Use original inputSlew (in ps)
+    double C = outputLoad;
+    double tau = inputSlew;
 
-    // Handle cases where indices are the same (value lies exactly on a grid line or point)
+    // Log detailed interpolation information
+    STA_LOG(DebugLevel::TRACE, "Interpolation details for gate {}: ", name_);
+    STA_LOG(DebugLevel::TRACE, "  Input: tau={:.6f} ps, C={:.6f} fF", tau, C);
+    STA_LOG(DebugLevel::TRACE, "  Table indices: tau_idx=[{}, {}], cap_idx=[{}, {}]", tau_idx1, tau_idx2, cap_idx1, cap_idx2);
+    STA_LOG(DebugLevel::TRACE, "  Table bounds: tau=[{:.6f}, {:.6f}] ps, C=[{:.6f}, {:.6f}] fF", t1, t2, C1, C2);
+    STA_LOG(DebugLevel::TRACE, "  Table values: v11={:.6f}, v12={:.6f}, v21={:.6f}, v22={:.6f}", v11, v12, v21, v22);
+
+    // Exact match on a grid point
     if (tau_idx1 == tau_idx2 && cap_idx1 == cap_idx2) {
-        return v11; // Exact match on a grid point
-    }
-
-    // Linear interpolation if one dimension matches
-    if (tau_idx1 == tau_idx2) { // Input slew matches an index line
-        if (C2 == C1) return v11; // On a grid point (already handled) or indices are identical
-        return v11 + (v12 - v11) * (C - C1) / (C2 - C1);
-    }
-    if (cap_idx1 == cap_idx2) { // Load capacitance matches an index line
-        if (t2 == t1) return v11; // On a grid point (already handled) or indices are identical
-        return v11 + (v21 - v11) * (tau - t1) / (t2 - t1);
-    }
-
-    // Bilinear interpolation formula
-    double denominator = (C2 - C1) * (t2 - t1);
-    if (denominator == 0.0) {
-        // This should not happen if indices are different and distinct.
-        // If it does, it implies C1=C2 or t1=t2, which should have been caught above.
-        std::cerr << "Warning: Interpolation denominator is zero unexpectedly for " << name_
-                  << " with slew=" << tau << "ps, load=" << C << "fF. Indices: t[" << tau_idx1 << "," << tau_idx2
-                  << "], C[" << cap_idx1 << "," << cap_idx2 << "]. Values: t1=" << t1 << ", t2=" << t2
-                  << ", C1=" << C1 << ", C2=" << C2 << std::endl;
-        // Fallback: return the value at the 'lower-left' corner (v11)
+        STA_LOG(DebugLevel::TRACE, "  Case: Exact grid point match. Returning v11={:.6f}", v11);
         return v11;
     }
 
-    double interpolatedValue = (
-        v11 * (C2 - C) * (t2 - tau) + // v11 * Area_Opposite_Corner22
-        v12 * (C - C1) * (t2 - tau) + // v12 * Area_Opposite_Corner21
-        v21 * (C2 - C) * (tau - t1) + // v21 * Area_Opposite_Corner12
-        v22 * (C - C1) * (tau - t1)   // v22 * Area_Opposite_Corner11
-    ) / denominator;
+    // First check for special case: either τ or C is exactly on a grid line
+    if (tau_idx1 == tau_idx2) {
+        if (C2 == C1) {
+            STA_LOG(DebugLevel::TRACE, "  Case: Input slew on grid, capacitance exact. Returning v11={:.6f}", v11);
+            return v11;
+        }
+        // Linear interpolation for capacitance only
+        // Force specific calculation order for consistent results
+        double C_diff = C - C1;
+        double C_range = C2 - C1;
+        double v_diff = v12 - v11;
+        double ratio = C_diff / C_range;
+        double term = v_diff * ratio;
+        double result = v11 + term;
+        
+        STA_LOG(DebugLevel::TRACE, "  Case: Input slew on grid. Linear interpolation: {:.6f} + ({:.6f} * {:.6f}) = {:.6f}", 
+                v11, v_diff, ratio, result);
+        return result;
+    }
+    
+    if (cap_idx1 == cap_idx2) {
+        if (t2 == t1) {
+            STA_LOG(DebugLevel::TRACE, "  Case: Capacitance on grid, input slew exact. Returning v11={:.6f}", v11);
+            return v11;
+        }
+        // Linear interpolation for input slew only
+        // Force specific calculation order for consistent results
+        double tau_diff = tau - t1;
+        double tau_range = t2 - t1;
+        double v_diff = v21 - v11;
+        double ratio = tau_diff / tau_range;
+        double term = v_diff * ratio;
+        double result = v11 + term;
+        
+        STA_LOG(DebugLevel::TRACE, "  Case: Capacitance on grid. Linear interpolation: {:.6f} + ({:.6f} * {:.6f}) = {:.6f}", 
+                v11, v_diff, ratio, result);
+        return result;
+    }
+
+    // Bilinear interpolation with controlled order of operations
+    double denominator = (C2 - C1) * (t2 - t1);
+    if (denominator == 0.0) {
+        std::cerr << "Warning: Interpolation denominator is zero unexpectedly for " << name_
+                  << " with slew=" << tau << "ps, load=" << C << "fF." << std::endl;
+        return v11;
+    }
+
+    // Pre-calculate common factors
+    double C2_minus_C = C2 - C;
+    double C_minus_C1 = C - C1;
+    double t2_minus_tau = t2 - tau;
+    double tau_minus_t1 = tau - t1;
+    
+    // Calculate each term separately with controlled order
+    double term1 = v11 * (C2_minus_C * t2_minus_tau);
+    double term2 = v12 * (C_minus_C1 * t2_minus_tau);
+    double term3 = v21 * (C2_minus_C * tau_minus_t1);
+    double term4 = v22 * (C_minus_C1 * tau_minus_t1);
+    
+    // Sum in a specific order to maintain consistency
+    double numerator = ((term1 + term2) + term3) + term4;
+    double interpolatedValue = numerator / denominator;
+
+    STA_LOG(DebugLevel::TRACE, "  Bilinear interpolation:");
+    STA_LOG(DebugLevel::TRACE, "    term1 = v11 * (C2-C) * (t2-tau) = {:.6f} * {:.6f} * {:.6f} = {:.6f}", 
+            v11, C2_minus_C, t2_minus_tau, term1);
+    STA_LOG(DebugLevel::TRACE, "    term2 = v12 * (C-C1) * (t2-tau) = {:.6f} * {:.6f} * {:.6f} = {:.6f}", 
+            v12, C_minus_C1, t2_minus_tau, term2);
+    STA_LOG(DebugLevel::TRACE, "    term3 = v21 * (C2-C) * (tau-t1) = {:.6f} * {:.6f} * {:.6f} = {:.6f}", 
+            v21, C2_minus_C, tau_minus_t1, term3);
+    STA_LOG(DebugLevel::TRACE, "    term4 = v22 * (C-C1) * (tau-t1) = {:.6f} * {:.6f} * {:.6f} = {:.6f}", 
+            v22, C_minus_C1, tau_minus_t1, term4);
+    STA_LOG(DebugLevel::TRACE, "    denominator = (C2-C1) * (t2-t1) = {:.6f} * {:.6f} = {:.6f}", 
+            C2-C1, t2-t1, denominator);
+    STA_LOG(DebugLevel::TRACE, "    result = ({:.6f} + {:.6f} + {:.6f} + {:.6f}) / {:.6f} = {:.6f}", 
+            term1, term2, term3, term4, denominator, interpolatedValue);
 
     return interpolatedValue;
 }

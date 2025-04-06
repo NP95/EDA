@@ -48,7 +48,4 @@ private:
     // Helper for interpolation
     double interpolate(const std::array<std::array<double, Constants::NLDM_TABLE_DIMENSION>, Constants::NLDM_TABLE_DIMENSION>& table,
                        double inputSlew, double outputLoad) const;
-
-    // Helper to find table indices (implementation detail)
-    std::pair<size_t, size_t> findTableIndices(const std::array<double, Constants::NLDM_TABLE_DIMENSION>& indices, double value) const;
 };
