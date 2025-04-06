@@ -1,0 +1,11 @@
+# Build artifacts
+obj/
+sta
+
+# Log files and output
+*.log
+*.txt
+*.csv
+
+# Editor/Tool specific
+.cursor/ 

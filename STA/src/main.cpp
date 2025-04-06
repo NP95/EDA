@@ -33,6 +33,7 @@ int main(int argc, char* argv[]) {
     std::string circuitFilePath;
     DebugLevel debugLevel = DebugLevel::INFO; // Default level
     std::vector<std::string> positionalArgs;
+    std::string logFilePath = ""; // Variable to store log file path
 
     // --- Argument Parsing ---
     for (int i = 1; i < argc; ++i) {
@@ -51,6 +52,14 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Error: -d flag requires a level argument." << std::endl;
                 return 1;
             }
+        } else if (strcmp(argv[i], "--log-file") == 0) { // Check for --log-file
+            if (i + 1 < argc) {
+                i++; // Consume the filename argument
+                logFilePath = argv[i];
+            } else {
+                std::cerr << "Error: --log-file flag requires a filename argument." << std::endl;
+                return 1;
+            }
         } else {
             // Assume it's a positional argument
             positionalArgs.push_back(argv[i]);
@@ -59,6 +68,14 @@ int main(int argc, char* argv[]) {
 
     // Set the debug level as early as possible
     DebugLogger::getInstance().setLevel(debugLevel);
+
+    // Set the log file if specified
+    if (!logFilePath.empty()) {
+        DebugLogger::getInstance().setLogFile(logFilePath);
+        std::cout << "Logging to file: " << logFilePath << std::endl; // Inform user
+    } else {
+        std::cout << "Logging to console (stderr)." << std::endl; // Inform user
+    }
 
     // Check positional arguments
     if (positionalArgs.size() != 2) {
@@ -146,6 +163,42 @@ int main(int argc, char* argv[]) {
     // --- Write Output File (Placeholder) ---
     STA_LOG(DebugLevel::INFO, "Writing output file... (Placeholder)");
     // TODO: Implement output file writing as per spec
+    // Example structure (Needs actual data):
+    std::ofstream outFile("ckt_traversal.txt");
+    if (outFile.is_open()) {
+        outFile << "Circuit delay: " << std::fixed << std::setprecision(3) << circuit.getCircuitDelay() << " ps" << std::endl;
+        outFile << "Gate slacks:" << std::endl;
+        // Iterate through nodes and print slack for GATE types
+        for (const auto& id : circuit.getTopologicalOrder()) { // Or iterate through nodes_ map
+            Node* node = circuit.getNode(id);
+            if (node && node->getType() == NodeType::GATE) {
+                 outFile << node->getGateType() << "-" << node->getId() << ": " 
+                         << std::fixed << std::setprecision(3) << node->getSlack() << " ps" << std::endl;
+            }
+        }
+        outFile << "Critical path:" << std::endl;
+        
+        // *** ADD DEBUG LOGGING HERE ***
+        {
+            std::string debugPathStr = "Debug Main CP (Size=" + std::to_string(criticalPath.size()) + "): [";
+            for(size_t i = 0; i < criticalPath.size(); ++i) {
+                 debugPathStr += std::to_string(criticalPath[i]) + (i == criticalPath.size() - 1 ? "" : ", ");
+            }
+            debugPathStr += "]";
+            STA_LOG(DebugLevel::INFO, "{}", debugPathStr);
+        }
+        // ******************************
+
+        // Print critical path nodes (comma separated)
+        for (size_t i = 0; i < criticalPath.size(); ++i) {
+            outFile << criticalPath[i] << (i == criticalPath.size() - 1 ? "" : ", ");
+        }
+        outFile << std::endl;
+        outFile.close();
+        STA_LOG(DebugLevel::INFO, "Output written to ckt_traversal.txt");
+    } else {
+        STA_LOG(DebugLevel::ERROR, "Failed to open ckt_traversal.txt for writing.");
+    }
 
     STA_LOG(DebugLevel::INFO, "\n--- STA Tool Execution Complete ---");
     STA_LOG(DebugLevel::INFO, "STA execution finished.");

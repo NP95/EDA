@@ -659,16 +659,167 @@ void Circuit::computeRequiredTimes(double circuitDelay) {
     STA_LOG(DebugLevel::INFO, "Backward traversal (computeRequiredTimes) completed.");
 }
 
-// Placeholder for slack calculation
+// --- Phase 1: Slack Calculation ---
 void Circuit::computeSlacks() {
-    STA_LOG(DebugLevel::WARN, "computeSlacks() - Not implemented yet.");
-    // Implementation will go here
+    STA_LOG(DebugLevel::INFO, "Starting slack calculation...");
+
+    for (auto const& [nodeId, nodePtr] : nodes_) {
+        Node* node = nodePtr.get();
+        if (!node) continue; // Should not happen with unique_ptr
+
+        double arrivalTime = node->getArrivalTime();
+        double requiredTime = node->getRequiredTime();
+
+        // Only calculate slack if both arrival and required times are valid (finite)
+        // PIs/DFF Outputs have AT=0, RAT depends on connections.
+        // Gates/Internal nodes should have finite AT/RAT after forward/backward passes if connected.
+        // POs/DFF Inputs have finite AT/RAT.
+        if (std::isfinite(arrivalTime) && std::isfinite(requiredTime)) {
+            double slack = requiredTime - arrivalTime;
+            node->setSlack(slack);
+
+            STA_LOG(DebugLevel::TRACE, "Node {}: AT={:.3f} ps, RAT={:.3f} ps -> Slack={:.3f} ps",
+                    nodeId, arrivalTime, requiredTime, slack);
+        } else {
+            // Set slack to NaN or infinity if times aren't valid, or just leave it default (NaN likely)
+             node->setSlack(std::numeric_limits<double>::quiet_NaN()); // Or some indicator value
+            STA_LOG(DebugLevel::DETAIL, "Node {}: Skipping slack calculation (AT={:.3f}, RAT={:.3f})",
+                    nodeId, arrivalTime, requiredTime);
+        }
+    }
+
+    STA_LOG(DebugLevel::INFO, "Finished slack calculation.");
 }
 
-// Placeholder for critical path finding
+// --- Phase 1: Critical Path Identification ---
 std::vector<int> Circuit::findCriticalPath() {
-    STA_LOG(DebugLevel::WARN, "findCriticalPath() - Not implemented yet.");
-    return {}; // Return empty path for now
+    STA_LOG(DebugLevel::INFO, "Finding Critical Path...");
+    std::vector<int> criticalPathNodes;
+    double minSlack = std::numeric_limits<double>::max();
+    int endNodeId = -1;
+
+    // 1. Find the Primary Output (or DFF Input) with the minimum slack
+    for (int poId : primaryOutputIds_) {
+        Node* poNode = getNode(poId);
+        if (poNode) {
+            double slack = poNode->getSlack();
+            if (std::isfinite(slack) && slack < minSlack) {
+                minSlack = slack;
+                endNodeId = poId;
+            }
+            STA_LOG(DebugLevel::TRACE, "  PO Node {}: Slack = {:.3f} ps", poId, slack);
+        }
+    }
+    
+    // Also check DFF Inputs, as they act as endpoints
+    for (auto const& [id, nodePtr] : nodes_) {
+        if (nodePtr->getType() == NodeType::DFF_INPUT) {
+             Node* dffInputNode = nodePtr.get();
+             double slack = dffInputNode->getSlack();
+             if (std::isfinite(slack) && slack < minSlack) {
+                 minSlack = slack;
+                 endNodeId = id;
+             }
+             STA_LOG(DebugLevel::TRACE, "  DFF Input Node {}: Slack = {:.3f} ps", id, slack);
+        }
+    }
+
+    if (endNodeId == -1) {
+        STA_LOG(DebugLevel::WARN, "Could not find a valid endpoint node with minimum slack to start critical path trace.");
+        return criticalPathNodes; // Return empty path
+    }
+
+    STA_LOG(DebugLevel::DETAIL, "Minimum slack at POs/DFF_Inputs is {:.3f} ps. Starting trace from Node {}.", minSlack, endNodeId);
+
+    // 2. Trace backward from the end node
+    int currentNodeId = endNodeId;
+    while (true) {
+        criticalPathNodes.push_back(currentNodeId);
+        Node* currentNode = getNode(currentNodeId);
+
+        if (!currentNode) {
+            STA_LOG(DebugLevel::ERROR, "Critical path trace encountered null node for ID {}. Aborting trace.", currentNodeId);
+            criticalPathNodes.clear(); // Indicate error
+            return criticalPathNodes;
+        }
+
+        // Stop if we reach a Primary Input or DFF Output
+        if (currentNode->getType() == NodeType::INPUT || currentNode->getType() == NodeType::DFF_OUTPUT) {
+            STA_LOG(DebugLevel::DETAIL, "  Reached PI/DFF_Output Node {}. End of trace.", currentNodeId);
+            break;
+        }
+
+        // If it's a gate or intermediate node, find the fan-in with the minimum slack
+        double minFaninSlack = std::numeric_limits<double>::max(); // Minimum slack found among fanins
+        int nextNodeId = -1; // ID of the fanin node with minimum slack
+        const auto& faninIds = currentNode->getFaninIds();
+
+        if (faninIds.empty()) {
+             STA_LOG(DebugLevel::WARN, "Critical path trace reached node {} with no fan-ins before hitting a PI/DFF_Output. Path might be incomplete.", currentNodeId);
+             break; // Stop trace here
+        }
+
+        std::string faninSlacksStr = ""; // For logging
+
+        for (int faninId : faninIds) {
+            Node* faninNode = getNode(faninId);
+            if (faninNode) {
+                double faninSlack = faninNode->getSlack();
+                faninSlacksStr += fmt::format(" {} (Slack {:.3f}),", faninId, faninSlack);
+
+                // Refined logic: Find minimum slack, handle ties by node ID
+                if (std::isfinite(faninSlack)) {
+                    // If this fanin has strictly smaller slack OR if it's the first valid one found
+                    if (faninSlack < minFaninSlack || nextNodeId == -1) {
+                        minFaninSlack = faninSlack;
+                        nextNodeId = faninId;
+                    }
+                    // If this fanin has slack equal to the current minimum, apply tie-breaker (e.g., lower ID wins)
+                    else if (faninSlack == minFaninSlack) {
+                         // Prefer lower ID in case of an exact tie in slack values.
+                         // Check nextNodeId != -1 ensures we don't compare faninId with initial -1.
+                         if (nextNodeId != -1 && faninId < nextNodeId) { 
+                             // minFaninSlack remains the same
+                             nextNodeId = faninId;
+                         }
+                    }
+                }
+            } else {
+                 STA_LOG(DebugLevel::WARN, "  Could not find fan-in node {} during critical path trace from node {}.", faninId, currentNodeId);
+            }
+        }
+        // Remove trailing comma and space from log string
+        if (!faninSlacksStr.empty()) {
+             faninSlacksStr = faninSlacksStr.substr(0, faninSlacksStr.length() - 1);
+        }
+
+        // Use the node ID found with the minimum fanin slack
+        if (nextNodeId == -1) {
+            STA_LOG(DebugLevel::WARN, "Could not find a valid fan-in node with minimum slack for node {}. Path trace might be incomplete.", currentNodeId);
+            break; // Stop trace
+        }
+        
+        STA_LOG(DebugLevel::TRACE, "  Node {} (Slack {:.3f}). Fanins:{}. Min Slack Fanin: {}.", 
+                currentNodeId, currentNode->getSlack(), faninSlacksStr, nextNodeId);
+
+        currentNodeId = nextNodeId;
+    }
+
+    // 3. Reverse the path to get it from start (PI/DFF_OUT) to end (PO/DFF_IN)
+    std::reverse(criticalPathNodes.begin(), criticalPathNodes.end());
+
+    // Log the final path
+    std::string pathStr;
+    for (size_t i = 0; i < criticalPathNodes.size(); ++i) {
+        pathStr += std::to_string(criticalPathNodes[i]);
+        if (i < criticalPathNodes.size() - 1) {
+            pathStr += ", ";
+        }
+    }
+    STA_LOG(DebugLevel::INFO, "Critical Path Identified: [{}]", pathStr);
+    STA_LOG(DebugLevel::INFO, ""); // Blank line log
+
+    return criticalPathNodes;
 }
 
 // Placeholder for getting circuit delay
