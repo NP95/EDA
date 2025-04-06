@@ -167,12 +167,17 @@ bool Circuit::parseNetlist(const std::string& filename) {
 
                     const Gate* gateInfo = library_->getGate(lookupGateType);
                     if (!gateInfo) {
-                        std::cerr << "Error: Gate type '" << lookupGateType << "' not found in library for line: " << line << std::endl;
-                        return false; // Fatal error if gate type is missing
+                        STA_LOG(DebugLevel::ERROR, "Gate type '{}' not found in library for line: {}. Skipping.", lookupGateType, line);
+                        // Consider if this should be a fatal error depending on requirements
+                        continue; // Skip this line if gate type is unknown
                     }
                     
-                    outputNode->setType(NodeType::GATE);
-                    outputNode->setGateType(lookupGateType); // Store the canonical name used for lookup
+                    // *** FIX: Only set type to GATE if it's not already an OUTPUT ***
+                    if (outputNode->getType() != NodeType::OUTPUT && outputNode->getType() != NodeType::DFF_INPUT) {
+                         outputNode->setType(NodeType::GATE);
+                    } // else retain OUTPUT or DFF_INPUT type
+                    
+                    outputNode->setGateType(lookupGateType); // Still store the gate type (e.g., NAND)
 
                     // Read fan-in IDs
                     int faninId;
@@ -457,9 +462,28 @@ void Circuit::calculateLoadCapacitances() {
                         capToAdd = dffInputCapAssumption;
                         contribStr = fmt::format("DFF_IN:{} ({:.5f}fF)", fanoutId, capToAdd);
                     } else if (fanoutType == NodeType::OUTPUT) {
-                        // Apply primary output load
-                        capToAdd = primaryOutputLoad;
-                        contribStr = fmt::format("PO:{} ({:.5f}fF)", fanoutId, capToAdd);
+                        // *** FIX: Check if PO is also a gate output ***
+                        const std::string& fanoutGateTypeStr = fanoutNode->getGateType();
+                        if (!fanoutGateTypeStr.empty()) {
+                            // This PO is the output of a gate, use the gate's input capacitance
+                            const Gate* fanoutGateInfo = library_->getGate(fanoutGateTypeStr);
+                            if (fanoutGateInfo) {
+                                capToAdd = fanoutGateInfo->getInputCapacitance();
+                                contribStr = fmt::format("PO_GATE:{} ({:.5f}fF)", fanoutId, capToAdd);
+                                STA_LOG(DebugLevel::TRACE, "    Fanout {} is PO/Gate ({}), using Gate Input Cap: {:.5f} fF", fanoutId, fanoutGateTypeStr, capToAdd);
+                            } else {
+                                // Fallback if gate info missing (shouldn't happen if parser is correct)
+                                STA_LOG(DebugLevel::WARN, "Node ID: {} ({}) - Fanout PO node ID {} has gate type '{}' but info not found. Using default PO load.",
+                                        node->getId(), node->getGateType(), fanoutId, fanoutGateTypeStr);
+                                capToAdd = primaryOutputLoad;
+                                contribStr = fmt::format("PO:{} ({:.5f}fF)", fanoutId, capToAdd);
+                            }
+                        } else {
+                            // This is a pure PO (not output of a gate), use the prescribed PO load
+                            capToAdd = primaryOutputLoad;
+                            contribStr = fmt::format("PO:{} ({:.5f}fF)", fanoutId, capToAdd);
+                            STA_LOG(DebugLevel::TRACE, "    Fanout {} is pure PO, using PO Load: {:.5f} fF", fanoutId, capToAdd);
+                        }
                     } else {
                         // This case (e.g., fanout is INPUT or DFF_OUTPUT) shouldn't logically occur
                          STA_LOG(DebugLevel::WARN, "Node ID: {} ({}) - Fanout node ID {} has unexpected type {}. Ignoring.",
@@ -487,10 +511,152 @@ void Circuit::calculateLoadCapacitances() {
     STA_LOG(DebugLevel::INFO, "Load capacitance calculation finished.");
 }
 
-// Placeholder for forward traversal
+// Computes required arrival times (RAT) for all nodes
 void Circuit::computeRequiredTimes(double circuitDelay) {
-    STA_LOG(DebugLevel::WARN, "computeRequiredTimes() - Not implemented yet.");
-    // Implementation will go here
+    STA_LOG(DebugLevel::INFO, "Starting backward traversal (computeRequiredTimes). Circuit delay: {:.3f} ps", circuitDelay);
+
+    // Initialize required time for primary outputs and DFF inputs
+    double initialRequiredTime = circuitDelay * Constants::REQUIRED_TIME_MULTIPLIER;
+    STA_LOG(DebugLevel::DETAIL, "Initial RAT for POs and DFF inputs set to {:.3f} ps ({} * {:.3f} ps)",
+            initialRequiredTime, Constants::REQUIRED_TIME_MULTIPLIER, circuitDelay);
+
+    for (const auto& pair : nodes_) {
+        Node* node = pair.second.get();
+        if (node->getType() == NodeType::OUTPUT || node->getType() == NodeType::DFF_INPUT) {
+            node->setRequiredTime(initialRequiredTime);
+            STA_LOG(DebugLevel::TRACE, "  Node {} (Type: {}): Initial RAT set to {:.3f} ps",
+                    node->getId(), static_cast<int>(node->getType()), node->getRequiredTime());
+        } else {
+            // Initialize other nodes' required time to infinity (or a very large number)
+            // The member variable already defaults to std::numeric_limits<double>::max()
+            STA_LOG(DebugLevel::TRACE, "  Node {} (Type: {}): Initial RAT is max_double",
+                     node->getId(), static_cast<int>(node->getType()));
+        }
+    }
+
+    // Iterate through nodes in reverse topological order
+    STA_LOG(DebugLevel::INFO, "Processing nodes in reverse topological order for RAT calculation.");
+    for (auto it = topologicalOrder_.rbegin(); it != topologicalOrder_.rend(); ++it) {
+        int nodeId = *it;
+        Node* currentNode = getNode(nodeId);
+
+        if (!currentNode) continue; // Should not happen
+
+        // Skip PIs and DFF outputs - their RAT is determined by the nodes they drive
+        if (currentNode->getType() == NodeType::INPUT || currentNode->getType() == NodeType::DFF_OUTPUT) {
+             STA_LOG(DebugLevel::TRACE, "Skipping Node {} (Type: {}) - PI or DFF_OUTPUT", nodeId, static_cast<int>(currentNode->getType()));
+            continue;
+        }
+
+        // If node has no fanouts (like a PO or unconnected gate), its RAT is already set/calculated
+        if (currentNode->getFanoutIds().empty()) {
+             STA_LOG(DebugLevel::TRACE, "Skipping Node {} (Type: {}) - No fanouts", nodeId, static_cast<int>(currentNode->getType()));
+            continue; // Already initialized if PO, otherwise remains max()
+        }
+
+        double minRequiredTime = std::numeric_limits<double>::max();
+
+        STA_LOG(DebugLevel::TRACE, "Calculating RAT for Node {} (Gate: {}, Type: {})",
+                nodeId, currentNode->getGateType().c_str(), static_cast<int>(currentNode->getType()));
+
+        // Iterate through all fanout nodes
+        for (int fanoutId : currentNode->getFanoutIds()) {
+            Node* fanoutNode = getNode(fanoutId);
+            if (!fanoutNode) continue;
+
+            double requiredTimeAtFanout = fanoutNode->getRequiredTime();
+            double fanoutGateDelay = 0.0; // Delay of the fanout gate itself
+
+            // Calculate the delay of the *fanout* gate using the *current* node's output slew
+            // and the *fanout* node's load capacitance.
+            if (fanoutNode->getType() == NodeType::GATE || fanoutNode->getType() == NodeType::DFF_INPUT) {
+                // DFF_INPUT acts like a gate input pin for timing purposes from the perspective of the driving gate
+                const Gate* fanoutGateInfo = library_->getGate(fanoutNode->getGateType());
+                 if (!fanoutGateInfo) {
+                      STA_LOG(DebugLevel::ERROR, "Could not find library info for fanout gate {} (Node {}) when calculating RAT for Node {}",
+                              fanoutNode->getGateType().c_str(), fanoutId, nodeId);
+                      continue;
+                 }
+                 
+                // Get the output slew from the *current* node (which is the input slew to the fanout gate)
+                double inputSlewToFanout = currentNode->getSlew();
+                double loadCapOfFanout = fanoutNode->getLoadCapacitance();
+                int fanoutNumInputs = fanoutNode->getFaninIds().size(); // Get number of inputs for scaling
+
+                double baseFanoutGateDelay = fanoutGateInfo->getDelay(inputSlewToFanout, loadCapOfFanout);
+                
+                // Apply scaling for n-input gates (n > 2), but not for 1-input gates
+                fanoutGateDelay = baseFanoutGateDelay; // Start with base delay
+                if (fanoutNumInputs > 2) {
+                    fanoutGateDelay *= (static_cast<double>(fanoutNumInputs) / 2.0);
+                    STA_LOG(DebugLevel::TRACE, "    Fanout Gate {} scaling applied: Base delay {:.3f} ps * ({}/{:.1f}) = {:.3f} ps", 
+                            fanoutId, baseFanoutGateDelay, fanoutNumInputs, 2.0, fanoutGateDelay);
+                } else {
+                    STA_LOG(DebugLevel::TRACE, "    Fanout Gate {} scaling not needed ({} inputs). Delay = {:.3f} ps", 
+                            fanoutId, fanoutNumInputs, fanoutGateDelay);
+                }
+
+                STA_LOG(DebugLevel::TRACE, "  Fanout Node {} (Gate: {}): RAT={:.3f} ps, InputSlew={:.3f} ps, LoadCap={:.3f} fF, ScaledDelay={:.3f} ps",
+                        fanoutId, fanoutNode->getGateType().c_str(), requiredTimeAtFanout,
+                        inputSlewToFanout, loadCapOfFanout, fanoutGateDelay);
+            } else if (fanoutNode->getType() == NodeType::OUTPUT) {
+                 // Fanout is a primary output. Check if it represents a gate.
+                 const std::string& fanoutGateTypeStr = fanoutNode->getGateType();
+                 if (!fanoutGateTypeStr.empty()) {
+                     // This PO is the output of a gate. Calculate its delay.
+                     const Gate* fanoutGateInfo = library_->getGate(fanoutGateTypeStr);
+                     if (fanoutGateInfo) {
+                         double inputSlewToFanout = currentNode->getSlew();
+                         // Use the actual load cap calculated for the PO node itself
+                         double loadCapOfFanout = fanoutNode->getLoadCapacitance(); 
+                         int fanoutNumInputs = fanoutNode->getFaninIds().size();
+
+                         double baseFanoutGateDelay = fanoutGateInfo->getDelay(inputSlewToFanout, loadCapOfFanout);
+                         fanoutGateDelay = baseFanoutGateDelay;
+
+                         if (fanoutNumInputs > 2) {
+                             fanoutGateDelay *= (static_cast<double>(fanoutNumInputs) / 2.0);
+                             STA_LOG(DebugLevel::TRACE, "    Fanout PO/Gate {} ({}) scaling applied: Base delay {:.3f} ps * ({}/{:.1f}) = {:.3f} ps", 
+                                     fanoutId, fanoutGateTypeStr, baseFanoutGateDelay, fanoutNumInputs, 2.0, fanoutGateDelay);
+                         } else {
+                             STA_LOG(DebugLevel::TRACE, "    Fanout PO/Gate {} ({}) scaling not needed ({} inputs). Delay = {:.3f} ps", 
+                                     fanoutId, fanoutGateTypeStr, fanoutNumInputs, fanoutGateDelay);
+                         }
+
+                         STA_LOG(DebugLevel::TRACE, "  Fanout Node {} (Type: OUTPUT/Gate: {}): RAT={:.3f} ps, InputSlew={:.3f} ps, LoadCap={:.3f} fF, ScaledDelay={:.3f} ps",
+                                 fanoutId, fanoutGateTypeStr, requiredTimeAtFanout,
+                                 inputSlewToFanout, loadCapOfFanout, fanoutGateDelay);
+                     } else {
+                         STA_LOG(DebugLevel::ERROR, "Could not find library info for PO/gate {} (Node {}) when calculating RAT for Node {}. Setting delay to 0.",
+                                 fanoutGateTypeStr.c_str(), fanoutId, nodeId);
+                         fanoutGateDelay = 0.0;
+                     }
+                 } else {
+                     // This is a pure PO (not defined by a gate), effective delay contribution is 0
+                     fanoutGateDelay = 0.0;
+                     STA_LOG(DebugLevel::TRACE, "  Fanout Node {} (Type: OUTPUT - Pure PO): RAT={:.3f} ps, Delay=0 ps", fanoutId, requiredTimeAtFanout);
+                 }
+            } else {
+                 STA_LOG(DebugLevel::WARN, "Unhandled fanout node type {} for node {} during RAT calculation.", static_cast<int>(fanoutNode->getType()), fanoutId);
+                 continue; // Skip if fanout type is unexpected (e.g. INPUT, DFF_OUTPUT)
+            }
+
+
+            // Calculate the required time at the output of the *current* node imposed by this fanout path
+            double requiredTimeViaThisPath = requiredTimeAtFanout - fanoutGateDelay;
+             STA_LOG(DebugLevel::TRACE, "    Required time via path through Fanout {}: {:.3f} ps - {:.3f} ps = {:.3f} ps",
+                     fanoutId, requiredTimeAtFanout, fanoutGateDelay, requiredTimeViaThisPath);
+
+            // Update the minimum required time for the current node
+            minRequiredTime = std::min(minRequiredTime, requiredTimeViaThisPath);
+        }
+
+        // Set the calculated minimum required time for the current node
+        currentNode->setRequiredTime(minRequiredTime);
+        STA_LOG(DebugLevel::DETAIL, "Node {}: Minimum RAT calculated: {:.3f} ps", nodeId, minRequiredTime);
+    }
+
+    STA_LOG(DebugLevel::INFO, "Backward traversal (computeRequiredTimes) completed.");
 }
 
 // Placeholder for slack calculation

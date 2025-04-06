@@ -122,9 +122,25 @@ int main(int argc, char* argv[]) {
     circuit.calculateLoadCapacitances();
 
     // 2. Compute Arrival Times (Forward Pass)
-    circuit.computeArrivalTimes(); // TODO: Call this next
+    circuit.computeArrivalTimes(); // This calculates maxCircuitDelay_
 
-    STA_LOG(DebugLevel::INFO, "STA complete (using placeholder functions).");
+    // 3. Compute Required Times (Backward Pass)
+    double calculatedDelay = circuit.getCircuitDelay();
+    if (calculatedDelay > 0) { // Only proceed if forward pass was successful
+        circuit.computeRequiredTimes(calculatedDelay);
+    } else {
+        STA_LOG(DebugLevel::ERROR, "Cannot compute required times: Circuit delay not calculated or is zero.");
+        DebugLogger::getInstance().closeLogFile();
+        return 1;
+    }
+
+    // 4. Compute Slacks (To be implemented)
+    circuit.computeSlacks();
+
+    // 5. Find Critical Path (To be implemented)
+    std::vector<int> criticalPath = circuit.findCriticalPath();
+
+    STA_LOG(DebugLevel::INFO, "STA complete (partial implementation).");
     STA_LOG(DebugLevel::INFO, "");
 
     // --- Write Output File (Placeholder) ---
