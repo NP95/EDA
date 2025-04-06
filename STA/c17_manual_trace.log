@@ -1,0 +1,156 @@
+// --- c17_manual_trace.log ---
+
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX] --- Static Timing Analysis Tool ---
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX] Debug Level : DETAIL
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX] Liberty File: NLDM_lib_max2Inp
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX] Circuit File: cleaned_iscas89_99_circuits/cleaned_c17.isc
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX]
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX] Parsing Liberty File...
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX] Liberty file parsed successfully.
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX]
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX] Parsing Circuit Netlist...
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] --- Circuit Graph Details ---
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Total nodes created: 11
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node [1]: Type=INPUT
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node [2]: Type=INPUT
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node [3]: Type=INPUT
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node [4]: Type=INPUT
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node [5]: Type=INPUT
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node [6]: Type=OUTPUT
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node [7]: Type=OUTPUT
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node [8]: Type=GATE, GateType=NAND, FaninIDs=[1, 3]
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node [9]: Type=GATE, GateType=NAND, FaninIDs=[3, 4]
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node [10]: Type=GATE, GateType=NAND, FaninIDs=[2, 9]
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node [11]: Type=GATE, GateType=NAND, FaninIDs=[9, 5]
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Topological Order: [5, 4, 3, 2, 1, 9, 8, 10, 11, 6, 7]
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] ------------------------------
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX] Circuit netlist parsed successfully.
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX]
+
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX] Performing Static Timing Analysis...
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Calculating Load Capacitances...
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node 6 (PO): C_load = 6.800 fF (4 * C_in(INV))
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node 7 (PO): C_load = 6.800 fF (4 * C_in(INV))
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node 8 (Fanout: 6[NAND]): C_load = C_in(NAND) = 1.599 fF
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node 9 (Fanout: 10[NAND], 11[NAND]): C_load = C_in(NAND) + C_in(NAND) = 1.599 + 1.599 = 3.198 fF
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node 10 (Fanout: 6[NAND], 7[NAND]): C_load = C_in(NAND) + C_in(NAND) = 1.599 + 1.599 = 3.198 fF
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Node 11 (Fanout: 7[NAND]): C_load = C_in(NAND) = 1.599 fF
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Load capacitance calculation complete.
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]
+
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Computing Arrival Times (Forward Pass)...
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing PI Node 5: AT=0.00 ps, Slew=2.00 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing PI Node 4: AT=0.00 ps, Slew=2.00 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing PI Node 3: AT=0.00 ps, Slew=2.00 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing PI Node 2: AT=0.00 ps, Slew=2.00 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing PI Node 1: AT=0.00 ps, Slew=2.00 ps
+
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing Node 9 (NAND)
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Input Slews: Node 3=2.00 ps, Node 4=2.00 ps. Max Slew=2.00 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Load Cap: 3.198 fF
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Gate.cpp:XXX]     Interpolating Slew: τ=2.00, C=3.198 -> S_out=9.96 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Gate.cpp:XXX]     Interpolating Delay: τ=2.00, C=3.198 -> Delay=14.03 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Arrival Times: Node 3=0.00 ps, Node 4=0.00 ps. Max AT=0.00 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Node 9: AT = 0.00 + 14.03 = 14.03 ps, Slew=9.96 ps
+
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing Node 8 (NAND)
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Input Slews: Node 1=2.00 ps, Node 3=2.00 ps. Max Slew=2.00 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Load Cap: 1.599 fF
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Gate.cpp:XXX]     Interpolating Slew: τ=2.00, C=1.599 -> S_out=7.51 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Gate.cpp:XXX]     Interpolating Delay: τ=2.00, C=1.599 -> Delay=10.79 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Arrival Times: Node 1=0.00 ps, Node 3=0.00 ps. Max AT=0.00 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Node 8: AT = 0.00 + 10.79 = 10.79 ps, Slew=7.51 ps
+
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing Node 10 (NAND)
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Input Slews: Node 2=2.00 ps, Node 9=9.96 ps. Max Slew=9.96 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Load Cap: 3.198 fF
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Gate.cpp:XXX]     Interpolating Slew: τ=9.96, C=3.198 -> S_out=11.37 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Gate.cpp:XXX]     Interpolating Delay: τ=9.96, C=3.198 -> Delay=19.84 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Arrival Times: Node 2=0.00 ps, Node 9=14.03 ps. Max AT=14.03 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Node 10: AT = 14.03 + 19.84 = 33.87 ps, Slew=11.37 ps
+
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing Node 11 (NAND)
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Input Slews: Node 9=9.96 ps, Node 5=2.00 ps. Max Slew=9.96 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Load Cap: 1.599 fF
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Gate.cpp:XXX]     Interpolating Slew: τ=9.96, C=1.599 -> S_out=8.52 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Gate.cpp:XXX]     Interpolating Delay: τ=9.96, C=1.599 -> Delay=15.45 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Arrival Times: Node 9=14.03 ps, Node 5=0.00 ps. Max AT=14.03 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Node 11: AT = 14.03 + 15.45 = 29.48 ps, Slew=8.52 ps
+
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing Node 6 (OUTPUT/NAND)
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Input Slews: Node 8=7.51 ps, Node 10=11.37 ps. Max Slew=11.37 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Load Cap: 6.800 fF
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Gate.cpp:XXX]     Interpolating Delay: τ=11.37, C=6.800 -> Delay=28.21 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Arrival Times: Node 8=10.79 ps, Node 10=33.87 ps. Max AT=33.87 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Node 6: AT = 33.87 + 28.21 = 62.08 ps
+
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing Node 7 (OUTPUT/NAND)
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Input Slews: Node 10=11.37 ps, Node 11=8.52 ps. Max Slew=11.37 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Load Cap: 6.800 fF
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Gate.cpp:XXX]     Interpolating Delay: τ=11.37, C=6.800 -> Delay=28.21 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Arrival Times: Node 10=33.87 ps, Node 11=29.48 ps. Max AT=33.87 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Node 7: AT = 33.87 + 28.21 = 62.08 ps
+
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Forward pass complete. Max Circuit Delay = 62.08 ps
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]
+
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Computing Required Times (Backward Pass)...
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] PO RAT = 1.1 * 62.08 = 68.29 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing Node 7 (PO): RAT=68.29 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing Node 6 (PO): RAT=68.29 ps
+
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing Node 11 (Fanin of 7)
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Path 11->7: RAT(7) - Delay(7) = 68.29 - 28.21 = 40.08 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Node 11: RAT = min(40.08) = 40.08 ps
+
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing Node 10 (Fanin of 6, 7)
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Path 10->6: RAT(6) - Delay(6) = 68.29 - 28.21 = 40.08 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Path 10->7: RAT(7) - Delay(7) = 68.29 - 28.21 = 40.08 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Node 10: RAT = min(40.08, 40.08) = 40.08 ps
+
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing Node 8 (Fanin of 6)
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Path 8->6: RAT(6) - Delay(6) = 68.29 - 28.21 = 40.08 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Node 8: RAT = min(40.08) = 40.08 ps
+
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing Node 9 (Fanin of 10, 11)
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Path 9->10: RAT(10) - Delay(10) = 40.08 - 19.84 = 20.24 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Path 9->11: RAT(11) - Delay(11) = 40.08 - 15.45 = 24.63 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Node 9: RAT = min(20.24, 24.63) = 20.24 ps
+
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing PI Node 1: RAT = 29.29 ps (from Path 1->8: RAT(8)-Delay(8) = 40.08-10.79)
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing PI Node 2: RAT = 20.24 ps (from Path 2->10: RAT(10)-Delay(10) = 40.08-19.84)
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing PI Node 3: RAT = 6.21 ps (from min(Path 3->8=29.29, Path 3->9=6.21))
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing PI Node 4: RAT = 6.21 ps (from Path 4->9: RAT(9)-Delay(9) = 20.24-14.03)
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Processing PI Node 5: RAT = 24.63 ps (from Path 5->11: RAT(11)-Delay(11) = 40.08-15.45)
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Backward pass complete.
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]
+
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Computing Slacks...
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Slack(1) = RAT(1) - AT(1) = 29.29 - 0.00 = 29.29 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Slack(2) = RAT(2) - AT(2) = 20.24 - 0.00 = 20.24 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Slack(3) = RAT(3) - AT(3) = 6.21 - 0.00 = 6.21 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Slack(4) = RAT(4) - AT(4) = 6.21 - 0.00 = 6.21 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Slack(5) = RAT(5) - AT(5) = 24.63 - 0.00 = 24.63 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Slack(6) = RAT(6) - AT(6) = 68.29 - 62.08 = 6.21 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Slack(7) = RAT(7) - AT(7) = 68.29 - 62.08 = 6.21 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Slack(8) = RAT(8) - AT(8) = 40.08 - 10.79 = 29.29 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Slack(9) = RAT(9) - AT(9) = 20.24 - 14.03 = 6.21 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Slack(10) = RAT(10) - AT(10) = 40.08 - 33.87 = 6.21 ps
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Slack(11) = RAT(11) - AT(11) = 40.08 - 29.48 = 10.60 ps
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Slack calculation complete.
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]
+
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Finding Critical Path...
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Minimum slack at POs (6, 7) is 6.21 ps. Starting trace from PO 7.
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Node 7 (Slack 6.21). Fanins: 10 (Slack 6.21), 11 (Slack 10.60). Min Slack Fanin: 10. Path: [10, 7]
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Node 10 (Slack 6.21). Fanins: 2 (Slack 20.24), 9 (Slack 6.21). Min Slack Fanin: 9. Path: [9, 10, 7]
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Node 9 (Slack 6.21). Fanins: 3 (Slack 6.21), 4 (Slack 6.21). Min Slack Fanin: 3. Path: [3, 9, 10, 7]
+[DETAIL][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]   Node 3 (Slack 6.21). PI node. End of trace.
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX] Critical Path Identified: [3, 9, 10, 7]
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][Circuit.cpp:XXX]
+
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX] STA complete (using placeholder functions).
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX]
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX] Writing output file... (Placeholder)
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX]
+[INFO][YYYY-MM-DD HH:MM:SS.mmm][main.cpp:XXX] --- STA Tool Execution Complete --- 
