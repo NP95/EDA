@@ -5,10 +5,10 @@
 namespace fm {
 
 void Netlist::addCell(const std::string& name) {
-    std::cout << "Adding cell: " << name << std::endl;
+    // std::cout << "Adding cell: " << name << std::endl; // Reduced logging
     // Check if cell already exists
     if (cellNameToId_.find(name) != cellNameToId_.end()) {
-        std::cout << "  Cell already exists" << std::endl;
+        // std::cout << "  Cell already exists" << std::endl; // Reduced logging
         return;  // Cell already exists
     }
 
@@ -20,7 +20,7 @@ void Netlist::addCell(const std::string& name) {
     // Add to containers
     cells_.push_back(cell);
     cellNameToId_[name] = cell.id;
-    std::cout << "  Cell added with ID: " << cell.id << std::endl;
+    // std::cout << "  Cell added with ID: " << cell.id << std::endl; // Reduced logging
 }
 
 Cell* Netlist::getCellByName(const std::string& name) {
@@ -47,10 +47,10 @@ const Cell* Netlist::getCellById(int id) const {
 }
 
 void Netlist::addNet(const std::string& name) {
-    std::cout << "Adding net: " << name << std::endl;
+    // std::cout << "Adding net: " << name << std::endl; // Reduced logging
     // Check if net already exists
     if (netNameToId_.find(name) != netNameToId_.end()) {
-        std::cout << "  Net already exists" << std::endl;
+        // std::cout << "  Net already exists" << std::endl; // Reduced logging
         return;  // Net already exists
     }
 
@@ -63,11 +63,11 @@ void Netlist::addNet(const std::string& name) {
     // Add to containers
     nets_.push_back(net);
     netNameToId_[name] = net.id;
-    std::cout << "  Net added with ID: " << net.id << std::endl;
+    // std::cout << "  Net added with ID: " << net.id << std::endl; // Reduced logging
 }
 
 void Netlist::addCellToNet(const std::string& netName, const std::string& cellName) {
-    std::cout << "Adding cell " << cellName << " to net " << netName << std::endl;
+    // std::cout << "Adding cell " << cellName << " to net " << netName << std::endl; // Reduced logging
     
     // Get net and cell
     Net* net = getNetByName(netName);
@@ -107,9 +107,9 @@ void Netlist::addCellToNet(const std::string& netName, const std::string& cellNa
         if (!cellHasNetId) {
             cell->netIds.push_back(netId);   // Store net ID
         }
-        std::cout << "  Connection already existed or added, ensured consistency" << std::endl;
-        std::cout << "  Net now has " << net->cellIds.size() << " cell IDs" << std::endl;
-        std::cout << "  Cell now has " << cell->netIds.size() << " net IDs" << std::endl;
+        // std::cout << "  Connection already existed or added, ensured consistency" << std::endl; // Reduced logging
+        // std::cout << "  Net now has " << net->cellIds.size() << " cell IDs" << std::endl; // Reduced logging
+        // std::cout << "  Cell now has " << cell->netIds.size() << " net IDs" << std::endl; // Reduced logging
         return;
     }
 
@@ -119,8 +119,8 @@ void Netlist::addCellToNet(const std::string& netName, const std::string& cellNa
 
     // Partition count updates deferred
     
-    std::cout << "  Connection added. Net now has " << net->cellIds.size() << " cell IDs" << std::endl;
-    std::cout << "  Cell now has " << cell->netIds.size() << " net IDs" << std::endl;
+    // std::cout << "  Connection added. Net now has " << net->cellIds.size() << " cell IDs" << std::endl; // Reduced logging
+    // std::cout << "  Cell now has " << cell->netIds.size() << " net IDs" << std::endl; // Reduced logging
 }
 
 Net* Netlist::getNetByName(const std::string& name) {

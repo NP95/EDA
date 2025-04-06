@@ -456,25 +456,80 @@ void FMEngine::applyMove(Cell* cell, int toPartition) {
     for (int netId : cell->netIds) {
         Net* net = netlist_.getNetById(netId); // Fetch net by ID
         if (!net) continue;
-        
-        // Decrement count in old partition
+
+        // --- Selective Gain Update --- START
+        // Store partition counts *before* the move for this net
+        int nF_before = net->partitionCount[fromPartition];
+        int nT_before = net->partitionCount[toPartition];
+
+        // Apply partition count change for this net
         net->partitionCount[fromPartition]--;
-        // Increment count in new partition
         net->partitionCount[toPartition]++;
+
+        // Get partition counts *after* the move for this net
+        int nF_after = net->partitionCount[fromPartition];
+        int nT_after = net->partitionCount[toPartition];
+
+        // Iterate through neighbors on this net to update their gains incrementally
+        for (int neighborCellId : net->cellIds) {
+            Cell* neighborCell = netlist_.getCellById(neighborCellId);
+            if (!neighborCell || neighborCell == cell || neighborCell->locked) {
+                continue; // Skip self, null, or locked cells
+            }
+
+            int oldGain = neighborCell->gain;
+            int gainDelta = 0;
+
+            // --- Apply F-M Gain Update Rules ---
+            // Rule 1: If T becomes non-empty (net becomes cut)
+            if (nT_before == 0) { // T was empty, moving 'cell' makes it non-empty (1)
+                if (neighborCell->partition == fromPartition) {
+                    gainDelta++; // Increment gain of F neighbors
+                }
+            }
+            // Rule 2: If F becomes empty (net becomes uncut)
+            if (nF_after == 0) { // F is now empty after move
+                if (neighborCell->partition == toPartition) {
+                    gainDelta++; // Increment gain of T neighbors
+                }
+            }
+            // Rule 3: If T becomes non-singleton (had only 'cell')
+            if (nT_after == 1) { // T now has exactly one cell ('cell')
+                 if (neighborCell->partition == fromPartition) {
+                    gainDelta--; // Decrement gain of F neighbors
+                }
+            }
+             // Rule 4: If F becomes singleton (had only 'cell' and neighbor)
+            if (nF_before == 1) { // F had only 'cell' before the move
+                if (neighborCell->partition == toPartition) {
+                    gainDelta--; // Decrement gain of T neighbors
+                }
+            }
+            // --- End F-M Gain Update Rules ---
+
+
+            if (gainDelta != 0) {
+                int newGain = oldGain + gainDelta;
+                neighborCell->gain = newGain; // Update gain directly
+                gainBucket_.updateCellGain(neighborCell, oldGain, newGain); // Update bucket list
+            }
+        }
+        // --- Selective Gain Update --- END
     }
-    
+
     // Update cell's partition
     cell->partition = toPartition;
-    
-    // Update cutsize
+
+    // Update cutsize using the pre-calculated gain (delta)
     partitionState_.updateCutSize(cutsizeDelta);
 
-    // Update gains of neighbors AFTER partition counts and cell partition are updated
-    updateGainsAfterMove(cell);
+    // REMOVED: Update gains of neighbors AFTER partition counts and cell partition are updated
+    // updateGainsAfterMove(cell); // Replaced by inline logic above
 
-    std::cout << "    Move applied. New cut size: " << partitionState_.getCurrentCutSize() 
-              << ", Partition sizes: [" << partitionState_.getPartitionSize(0) 
-              << ", " << partitionState_.getPartitionSize(1) << "]" << std::endl;
+    // Reduced logging for performance
+    // std::cout << "    Move applied. New cut size: " << partitionState_.getCurrentCutSize()
+    //           << ", Partition sizes: [" << partitionState_.getPartitionSize(0)
+    //           << ", " << partitionState_.getPartitionSize(1) << "]" << std::endl;
 }
 
 int FMEngine::getMaxPossibleDegree() const {
@@ -511,7 +566,8 @@ void FMEngine::undoMove(const Move& move) {
     Cell* cell = move.cell;
     int originalPartition = move.fromPartition;
     int movedToPartition = move.toPartition;
-    std::cout << "    Undoing move of cell " << cell->name << " from " << movedToPartition << " to " << originalPartition << std::endl;
+    // Reduced logging
+    // std::cout << "    Undoing move of cell " << cell->name << " from " << movedToPartition << " to " << originalPartition << std::endl;
 
     // 1. Calculate the cutsize change to undo.
     //    The original move changed cutsize by -move.gain (where move.gain was the gain *before* the move).
@@ -533,25 +589,48 @@ void FMEngine::undoMove(const Move& move) {
 
     // 4. Restore cell's partition
     cell->partition = originalPartition;
-    
+
     // 5. Unlock the cell
     cell->locked = false;
 
-    // 6. Update gains of neighbors based on the now reverted state of 'cell' and nets
-    //    Neighbors' gains might change due to 'cell' moving back
-    updateGainsAfterMove(cell);
+    // --- Gain Update during Undo ---
+    // 6. Update gains of neighbors based on the now reverted state.
+    //    It's simpler and safer for undo to just recalculate affected neighbor gains,
+    //    as undo operations are less frequent than forward moves.
+    std::unordered_set<Cell*> neighborsToUpdate;
+    for (int netId : cell->netIds) {
+         Net* net = netlist_.getNetById(netId);
+         if (!net) continue;
+         for (int neighborId : net->cellIds) {
+             Cell* neighbor = netlist_.getCellById(neighborId);
+             // Include the moved cell itself now as its gain needs recalculation too
+             if (neighbor && !neighbor->locked) {
+                 neighborsToUpdate.insert(neighbor);
+             }
+         }
+    }
+    for (Cell* neighbor : neighborsToUpdate) {
+        if (neighbor == cell) continue; // Skip self here, handled below
+        int oldGain = neighbor->gain;
+        int newGain = calculateCellGain(neighbor); // Recalculate
+        if (oldGain != newGain) {
+             gainBucket_.updateCellGain(neighbor, oldGain, newGain);
+        }
+    }
+    // --- End Neighbor Gain Update during Undo ---
 
     // 7. Recalculate the gain of the moved cell itself in its original partition
-    int currentGain = calculateCellGain(cell); 
+    int currentGain = calculateCellGain(cell);
     cell->gain = currentGain;
 
     // 8. Add the cell back to the gain bucket with its recalculated gain
-    gainBucket_.addCell(cell); 
+    gainBucket_.addCell(cell);
 
     // 9. Apply the cutsize reversal *after* state is restored
-    partitionState_.updateCutSize(cutsizeDeltaUndo); 
-    
-    std::cout << "    Undo complete. Cut size after undo: " << partitionState_.getCurrentCutSize() << std::endl;
+    partitionState_.updateCutSize(cutsizeDeltaUndo);
+
+    // Reduced logging
+    // std::cout << "    Undo complete. Cut size after undo: " << partitionState_.getCurrentCutSize() << std::endl;
 }
 
 int FMEngine::calculateCurrentCutSize() const {
