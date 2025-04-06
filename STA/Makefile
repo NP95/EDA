@@ -1,76 +1,73 @@
-# Makefile for the STA Tool (Handles src/ and include/ directories)
+# Makefile for STA Project
 
-# Compiler
+# Compiler and Flags
 CXX = g++
 
-# Build flags
-DEBUG_MODE ?= 0
+# Release flags (Optimized)
+CXXFLAGS_RELEASE = -std=c++17 -Wall -Wextra -g -O2
 
-# Base flags
-CXXFLAGS_BASE = -std=c++17 -Wall -Wextra -g -I$(INCDIR) # Using C++17 as seen in your output, added -g for symbols
+# Debug flags (No optimization, Debug symbols)
+CXXFLAGS_DEBUG = -std=c++17 -Wall -Wextra -g -O0 -DDEBUG_BUILD
 
-# Conditional flags
-ifeq ($(DEBUG_MODE), 1)
-  # Debug build: Enable DEBUG_BUILD macro, maybe less optimization
-  CXXFLAGS = $(CXXFLAGS_BASE) -O0 -DDEBUG_BUILD
-else
-  # Release build: No DEBUG_BUILD macro, enable optimization
-  CXXFLAGS = $(CXXFLAGS_BASE) -O2
-endif
-
-# Linker flags (if any needed, e.g., -lm for math library)
-LDFLAGS =
+# Linker flags (if any)
+LDFLAGS = -lm -lfmt # Link math library and fmt library
+INCLUDE_DIRS = -Iinclude
 
 # Directories
 SRCDIR = src
-INCDIR = include
 OBJDIR = obj
 
-# Name of the final executable
-TARGET = sta_tool # Reverted to fixed name
+# Executables
+STA_TARGET = sta
+VALIDATE_TARGET = validate_interpolation
 
-# Find all .cpp files in the source directory
-SRCS = $(wildcard $(SRCDIR)/*.cpp)
+# Object files needed for the main STA target
+STA_OBJECTS = $(OBJDIR)/Circuit.o $(OBJDIR)/Debug.o $(OBJDIR)/Gate.o $(OBJDIR)/GateLibrary.o $(OBJDIR)/Node.o $(OBJDIR)/main.o
 
-# Generate object file names in the object directory
-# e.g., src/Utils.cpp -> obj/Utils.o
-OBJS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(SRCS))
+# Object files needed for the validation program
+VALIDATE_OBJECTS = $(OBJDIR)/Debug.o $(OBJDIR)/Gate.o $(OBJDIR)/GateLibrary.o $(OBJDIR)/validate_interpolation.o
 
-# --- Special Targets ---
+# Targets
+.PHONY: all clean debug release validate
 
-# Debug build
-debug:
-	$(MAKE) DEBUG_MODE=1 all
+# Default target is release build of STA
+all: release
 
-# --- Rules ---
+# Build STA in release mode
+release: CXXFLAGS = $(CXXFLAGS_RELEASE)
+release: $(STA_TARGET)
 
-# Default target: Build the executable
-all: $(TARGET)
+# Build STA in debug mode
+debug: CXXFLAGS = $(CXXFLAGS_DEBUG)
+debug: $(STA_TARGET)
 
-# Rule to link the executable from object files
-# Depends on all object files in $(OBJDIR)
-$(TARGET): $(OBJS)
-	@echo "Linking $(TARGET)..."
+# Build validation program
+validate: CXXFLAGS = $(CXXFLAGS_RELEASE)
+validate: $(VALIDATE_TARGET)
+
+# Link the main STA target
+$(STA_TARGET): $(STA_OBJECTS)
+	@echo "Linking $(STA_TARGET)..."
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
-	@echo "$(TARGET) built successfully."
+	@echo "Build complete: ./$@"
 
-# Rule to compile a .cpp source file from SRCDIR into a .o object file in OBJDIR
-# Depends on the corresponding .cpp file in SRCDIR
-# Also good practice to make it depend on the OBJDIR existing
+# Link the validation program
+$(VALIDATE_TARGET): $(VALIDATE_OBJECTS)
+	@echo "Linking $(VALIDATE_TARGET)..."
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+	@echo "Build complete: ./$@"
+
+# Pattern rule for object files
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR)
-	@echo "Compiling $<..."
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	@echo "Compiling $< (Pattern Rule)..."
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
 
-# Rule to create the object directory if it doesn't exist
-# This is used as an order-only prerequisite (via |) for the compilation rule
+# Create object directory if it doesn't exist
 $(OBJDIR):
 	@mkdir -p $(OBJDIR)
 
-# Rule to clean up generated files
+# Clean up generated files
 clean:
 	@echo "Cleaning up generated files..."
-	rm -rf $(OBJDIR) $(TARGET) # Use rm -rf to remove obj directory safely
-	@echo "Cleanup complete."
-
-# Declare targets that are not actual files
-.PHONY: all clean debug $(OBJDIR)
+	rm -rf $(OBJDIR) ./$(STA_TARGET) ./$(VALIDATE_TARGET)
+	@echo "Cleanup complete." 

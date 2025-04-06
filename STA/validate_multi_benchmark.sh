@@ -11,7 +11,7 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Configuration
+# Configuration - paths adjusted to match your project structure
 REF_DIR="ref"
 YOUR_DIR="."
 BENCHMARK_DIR="cleaned_iscas89_99_circuits"
@@ -19,7 +19,7 @@ LIB_FILE="NLDM_lib_max2Inp"
 NUM_RUNS=1  # Number of times to run each implementation for performance comparison
 OUTPUT_CSV="sta_validation_results.csv"
 REF_EXE="$REF_DIR/sta"
-YOUR_EXE="sta_tool" # Standard executable name
+YOUR_EXE="sta_tool"
 
 # Check if necessary files and directories exist
 if [ ! -d "$REF_DIR" ]; then
@@ -57,7 +57,7 @@ echo -e "${BLUE}Benchmark directory: ${NC}$BENCHMARK_DIR"
 echo -e "${BLUE}Number of benchmark files: ${NC}${#BENCHMARK_FILES[@]}"
 echo
 
-# Step 1: Build Reference
+# Step 1: Build both implementations without DEBUG flag
 echo -e "${BLUE}=== Building Reference Implementation ===${NC}"
 if [ ! -f "$REF_EXE" ]; then
     echo -e "${YELLOW}Reference executable $REF_EXE not found. Using pre-built version if available.${NC}"
@@ -65,18 +65,17 @@ else
     echo -e "${GREEN}Reference executable $REF_EXE already exists.${NC}"
 fi
 
-# Step 1b: Build Your Implementation (Optimized Performance Version)
 echo 
-echo -e "${BLUE}=== Building Your Implementation (Optimized) ===${NC}"
+echo -e "${BLUE}=== Building Your Implementation ===${NC}"
 make clean
-# Build standard release version for performance
-make DEBUG_MODE=0 TARGET=$YOUR_EXE all 
+# Ensure DEBUG_MODE is not set during build
+make DEBUG_MODE=0
 if [ $? -ne 0 ]; then
-    echo -e "${RED}Error: Failed to build your implementation ($YOUR_EXE)${NC}"
+    echo -e "${RED}Error: Failed to build your implementation${NC}"
     exit 1
 fi
 
-# Create CSV header for results
+# Create CSV header for results - with error handling for permissions
 touch $OUTPUT_CSV 2>/dev/null
 if [ $? -ne 0 ]; then
     echo -e "${YELLOW}Warning: Cannot write to $OUTPUT_CSV, using results.csv in current directory${NC}"
@@ -89,7 +88,6 @@ if [ $? -ne 0 ]; then
 fi
 
 if [ -n "$OUTPUT_CSV" ]; then
-    # Revert to original header
     echo "Benchmark,Ref_Delay,Your_Delay,Delay_Match,Path_Match,Ref_Runtime,Your_Runtime,Speedup,Status" > $OUTPUT_CSV
 fi
 
@@ -125,6 +123,7 @@ for BENCHMARK_FILE in "${BENCHMARK_FILES[@]}"; do
     # Step 2: Run reference implementation with timeout
     echo -e "${BLUE}Running Reference Implementation...${NC}"
     REF_OUTPUT_FILE="ref_output.txt"
+    # Run directly without cd to avoid directory issues
     START_TIME=$(date +%s.%N)
     $TIMEOUT_CMD $REF_EXE $LIB_FILE $BENCHMARK_FILE > /dev/null 2>&1
     REF_EXIT_CODE=$?
@@ -138,6 +137,8 @@ for BENCHMARK_FILE in "${BENCHMARK_FILES[@]}"; do
     else
         REF_RUNTIME=$(echo "$END_TIME - $START_TIME" | bc)
         echo -e "${GREEN}Reference completed in ${REF_RUNTIME}s${NC}"
+        
+        # If output file exists, extract the delay
         if [ -f "ckt_traversal.txt" ]; then
             REF_DELAY=$(grep "Circuit delay:" ckt_traversal.txt | awk '{print $3}')
             REF_PATH=$(grep -A1 "Critical path:" ckt_traversal.txt | tail -1)
@@ -147,11 +148,11 @@ for BENCHMARK_FILE in "${BENCHMARK_FILES[@]}"; do
         fi
     fi
     
-    # Step 3: Run your implementation (Performance version) with timeout
-    echo -e "${BLUE}Running Your Implementation (Performance)...${NC}"
+    # Step 3: Run your implementation with timeout
+    echo -e "${BLUE}Running Your Implementation...${NC}"
     YOUR_OUTPUT_FILE="your_output.txt"
     START_TIME=$(date +%s.%N)
-    $TIMEOUT_CMD ./$YOUR_EXE -l $LIB_FILE -c $BENCHMARK_FILE > /dev/null 2>&1 # Use flags
+    $TIMEOUT_CMD ./$YOUR_EXE $LIB_FILE $BENCHMARK_FILE > /dev/null 2>&1
     YOUR_EXIT_CODE=$?
     END_TIME=$(date +%s.%N)
     
@@ -163,6 +164,8 @@ for BENCHMARK_FILE in "${BENCHMARK_FILES[@]}"; do
     else
         YOUR_RUNTIME=$(echo "$END_TIME - $START_TIME" | bc)
         echo -e "${GREEN}Your implementation completed in ${YOUR_RUNTIME}s${NC}"
+        
+        # If output file exists, extract the delay
         if [ -f "ckt_traversal.txt" ]; then
             YOUR_DELAY=$(grep "Circuit delay:" ckt_traversal.txt | awk '{print $3}')
             YOUR_PATH=$(grep -A1 "Critical path:" ckt_traversal.txt | tail -1)
@@ -177,26 +180,26 @@ for BENCHMARK_FILE in "${BENCHMARK_FILES[@]}"; do
     # Step 4: Compare outputs if both implementations completed successfully
     if [ "$REF_RUNTIME" != "TIMEOUT" ] && [ "$YOUR_RUNTIME" != "TIMEOUT" ] && [ -f "$REF_OUTPUT_FILE" ] && [ -f "$YOUR_OUTPUT_FILE" ]; then
         echo -e "${BLUE}Comparing Results:${NC}"
+        
         # Compare delays
         if [ "$REF_DELAY" == "$YOUR_DELAY" ]; then
             echo -e "${GREEN}✓ Circuit delays match exactly: $REF_DELAY ps${NC}"
             DELAY_MATCH="YES"
         else
+            # Check if delays are within 1% of each other
             REF_DELAY_NUM=$(echo $REF_DELAY | sed 's/[^0-9.]//g')
             YOUR_DELAY_NUM=$(echo $YOUR_DELAY | sed 's/[^0-9.]//g')
-            if (( $(echo "$REF_DELAY_NUM > 0" | bc -l) )); then # Avoid division by zero
-                DELAY_DIFF_PCT=$(echo "scale=2; 100 * ($YOUR_DELAY_NUM - $REF_DELAY_NUM) / $REF_DELAY_NUM" | bc)
-                DELAY_DIFF_ABS=$(echo "scale=2; sqrt(($DELAY_DIFF_PCT)^2)" | bc)
-                if (( $(echo "$DELAY_DIFF_ABS < 1.0" | bc -l) )); then
-                    echo -e "${GREEN}✓ Circuit delays match within 1%: Ref=$REF_DELAY ps, Yours=$YOUR_DELAY ps (${DELAY_DIFF_PCT}%)${NC}"
-                    DELAY_MATCH="WITHIN_1PCT"
-                else
-                    echo -e "${YELLOW}! Circuit delays differ > 1%: Ref=$REF_DELAY ps, Yours=$YOUR_DELAY ps (${DELAY_DIFF_PCT}%)${NC}"
-                fi
+            DELAY_DIFF_PCT=$(echo "scale=2; 100 * ($YOUR_DELAY_NUM - $REF_DELAY_NUM) / $REF_DELAY_NUM" | bc)
+            DELAY_DIFF_ABS=$(echo "scale=2; sqrt(($DELAY_DIFF_PCT)^2)" | bc)
+            
+            if (( $(echo "$DELAY_DIFF_ABS < 1.0" | bc -l) )); then
+                echo -e "${GREEN}✓ Circuit delays match within 1%: Ref=$REF_DELAY ps, Yours=$YOUR_DELAY ps (${DELAY_DIFF_PCT}%)${NC}"
+                DELAY_MATCH="WITHIN_1PCT"
             else
-                echo -e "${YELLOW}! Cannot compare delays (Reference delay is zero or invalid)${NC}"
+                echo -e "${YELLOW}! Circuit delays differ: Ref=$REF_DELAY ps, Yours=$YOUR_DELAY ps (${DELAY_DIFF_PCT}%)${NC}"
             fi
         fi
+        
         # Compare critical paths
         if [ "$REF_PATH" == "$YOUR_PATH" ]; then
             echo -e "${GREEN}✓ Critical paths match exactly${NC}"
@@ -206,14 +209,16 @@ for BENCHMARK_FILE in "${BENCHMARK_FILES[@]}"; do
             echo "  Reference: $REF_PATH"
             echo "  Your impl: $YOUR_PATH"
         fi
+        
         # Check overall output match
         diff -q $REF_OUTPUT_FILE $YOUR_OUTPUT_FILE > /dev/null
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}✓ Complete outputs match!${NC}"
             MATCHING_OUTPUTS=$((MATCHING_OUTPUTS + 1))
         fi
-        # Calculate speedup
-        if [[ $REF_RUNTIME != "TIMEOUT" ]] && [[ $YOUR_RUNTIME != "TIMEOUT" ]] && (( $(echo "$YOUR_RUNTIME > 0" | bc -l) )); then
+        
+        # Calculate speedup if both runtimes are available
+        if [ "$REF_RUNTIME" != "TIMEOUT" ] && [ "$YOUR_RUNTIME" != "TIMEOUT" ]; then
             SPEEDUP=$(echo "scale=2; $REF_RUNTIME / $YOUR_RUNTIME" | bc)
             echo -e "${BLUE}Performance: Your implementation is ${SPEEDUP}x the speed of reference${NC}"
         fi
@@ -224,7 +229,6 @@ for BENCHMARK_FILE in "${BENCHMARK_FILES[@]}"; do
     
     # Add to CSV
     if [ -n "$OUTPUT_CSV" ]; then
-        # Revert to original CSV format
         echo "$BENCHMARK_NAME,$REF_DELAY,$YOUR_DELAY,$DELAY_MATCH,$PATH_MATCH,$REF_RUNTIME,$YOUR_RUNTIME,$SPEEDUP,$STATUS" >> $OUTPUT_CSV
     fi
 done
@@ -235,7 +239,6 @@ echo -e "${BLUE}=== Validation Summary ===${NC}"
 echo "Total benchmarks processed: $TOTAL_BENCHMARKS"
 echo "Successfully completed benchmarks: $SUCCESSFUL_BENCHMARKS"
 echo "Benchmarks with matching outputs: $MATCHING_OUTPUTS"
-# Remove internal validation counts
 echo "Reference implementation timeouts: $REF_TIMEOUTS"
 echo "Your implementation timeouts: $YOUR_TIMEOUTS"
 echo

@@ -1,45 +1,85 @@
-// Node.cpp
 #include "Node.hpp"
-#include "Constants.hpp" // For DEFAULT_INPUT_SLEW
 
-// --- Constructor Implementation ---
-Node::Node(int id, const std::string& type)
-    : nodeType_(type),
-      id_(id),
-      // Initialize slew only if it's a primary input type at creation?
-      // Or better handled during forward traversal initialization.
-      // Let's initialize to 0 and let traversal set PI slew.
-      inputSlew_(0.0)
-       {}
-
-// --- Getter Implementations ---
-int Node::getId() const { return id_; }
-const std::string& Node::getNodeType() const { return nodeType_; }
-const std::vector<int>& Node::getFanInList() const { return fanInList_; }
-const std::vector<int>& Node::getFanOutList() const { return fanOutList_; }
-double Node::getArrivalTime() const { return arrivalTime_; }
-double Node::getInputSlew() const { return inputSlew_; }
-double Node::getSlack() const { return slack_; }
-double Node::getRequiredArrivalTime() const { return requiredArrivalTime_; }
-bool Node::isPrimaryOutput() const { return isPrimaryOutput_; }
-bool Node::isPrimaryInput() const { return isPrimaryInput_; }
-
-// --- Setter Implementations ---
-void Node::setArrivalTime(double val) { arrivalTime_ = val; }
-void Node::setInputSlew(double val) { inputSlew_ = val; }
-void Node::setSlack(double val) { slack_ = val; }
-void Node::setRequiredArrivalTime(double val) { requiredArrivalTime_ = val; }
-
-// Reset timing information and cache flags
-void Node::resetTimingAndCache() {
-    arrivalTime_ = 0.0;
-    inputSlew_ = 0.0; // Will be set for PIs in forward traversal
-    slack_ = std::numeric_limits<double>::max();
-    requiredArrivalTime_ = std::numeric_limits<double>::max();
-    cachedLoadCapacitance_ = -1.0;
-    loadCapacitanceDirty_ = true;
+Node::Node(int id) : id_(id) {
+    // Initialize timing defaults if needed, although member initializers handle most
 }
 
-// --- Add Fan-in/Fan-out Implementations ---
-void Node::addFanIn(int nodeId) { fanInList_.push_back(nodeId); }
-void Node::addFanOut(int nodeId) { fanOutList_.push_back(nodeId); }
+// --- Getters ---
+
+int Node::getId() const {
+    return id_;
+}
+
+NodeType Node::getType() const {
+    return type_;
+}
+
+const std::string& Node::getGateType() const {
+    return gateType_;
+}
+
+const std::vector<int>& Node::getFaninIds() const {
+    return faninIds_;
+}
+
+const std::vector<int>& Node::getFanoutIds() const {
+    return fanoutIds_;
+}
+
+double Node::getArrivalTime() const {
+    return arrivalTime_;
+}
+
+double Node::getRequiredTime() const {
+    return requiredTime_;
+}
+
+double Node::getSlew() const {
+    return outputSlew_;
+}
+
+double Node::getLoadCapacitance() const {
+    return loadCapacitance_;
+}
+
+double Node::getSlack() const {
+    return slack_;
+}
+
+// --- Setters ---
+
+void Node::setType(NodeType type) {
+    type_ = type;
+}
+
+void Node::setGateType(const std::string& gateType) {
+    gateType_ = gateType;
+}
+
+void Node::addFanin(int nodeId) {
+    faninIds_.push_back(nodeId);
+}
+
+void Node::addFanout(int nodeId) {
+    fanoutIds_.push_back(nodeId);
+}
+
+void Node::setArrivalTime(double time) {
+    arrivalTime_ = time;
+}
+
+void Node::setRequiredTime(double time) {
+    requiredTime_ = time;
+}
+
+void Node::setSlew(double slew) {
+    outputSlew_ = slew;
+}
+
+void Node::setLoadCapacitance(double cap) {
+    loadCapacitance_ = cap;
+}
+
+void Node::setSlack(double slack) {
+    slack_ = slack;
+}

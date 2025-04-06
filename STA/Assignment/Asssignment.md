@@ -1,692 +1,258 @@
-# EE5301: Advanced Digital VLSI Design
-## Programming Assignment: Building a Static Timing Analysis (STA) Tool
+I'll update the specification to include a requirement for implementing the debugging system:
+
+## Static Timing Analysis (STA) Implementation
 
 ### Overview
 
-In this assignment, you will implement a Static Timing Analysis (STA) tool that analyzes digital circuits to compute signal propagation delays and identify critical paths. Your tool will read netlists in a standard format, incorporate timing information from a Liberty file, and perform precise delay calculations.
+This project involves implementing a Static Timing Analysis (STA) tool for digital circuits. STA is a method used to calculate the expected timing of a digital circuit without requiring simulation. The implementation will analyze circuit netlists by performing topological traversal of the circuit graph, where nodes represent gates and edges represent wire connections.
 
-The assignment is divided into two phases:
-1. **Circuit Parsing Phase**: Implementing an efficient parser for netlists and timing models
-2. **Timing Analysis Phase**: Performing actual static timing analysis (to be completed in a later assignment)
+### Background
 
-This assignment focuses exclusively on the Circuit Parsing Phase, creating the foundation for the timing analysis to follow.
+Static Timing Analysis is essential for ensuring that digital circuits meet their timing requirements. It involves:
 
-### Learning Objectives
+1. Forward traversal to calculate arrival times at each gate output
+2. Backward traversal to calculate required arrival times
+3. Computing slack values to identify critical paths
+4. Determining the overall circuit delay
 
-Upon completing this assignment, you will be able to:
-- Implement high-performance parsing algorithms for large circuit descriptions
-- Design efficient data structures for representing digital circuits
-- Process industry-standard design files (netlist and liberty formats)
-- Apply performance optimization techniques for handling large datasets
-- Develop a foundation for implementing static timing analysis algorithms
+### Project Phases
 
-### Background: Static Timing Analysis
+#### Phase 0A: Liberty File Parsing
 
-Static Timing Analysis (STA) is an essential step in digital circuit design that verifies whether a circuit meets its timing requirements. Unlike dynamic simulation, STA analyzes all possible paths through the circuit without requiring test vectors, making it computationally efficient for large designs.
+- Parse a liberty file (.lib) containing Non-Linear Delay Models (NLDMs)
+- Extract gate types, their delay tables, and output slew tables
+- Store this information in appropriate data structures
 
-The key concepts in STA include:
-- **Gate Delay**: Time taken for a signal to propagate through a logic gate
-- **Net Delay**: Time taken for a signal to travel along interconnections
-- **Arrival Time**: Time when a signal reaches a particular point in the circuit
-- **Required Time**: Time by which a signal must reach a point to meet timing requirements
-- **Slack**: Difference between required time and arrival time (positive slack means timing is met)
-- **Critical Path**: Path with the minimum slack, determining the maximum operating frequency
+#### Phase 0B: Circuit Netlist Processing
 
-### Assignment Requirements
+- Parse a circuit netlist (.isc/.bench) file
+- Build an adjacency list representation of the circuit
+- Identify inputs, outputs, and internal gates
+- Handle special elements like flip-flops (DFF)
 
-You will build a tool that:
+#### Phase 1: Static Timing Analysis
 
-1. Parses circuit netlists in the ISCAS 89/99 format
-2. Parses timing models in the Liberty format (simplified version provided)
-3. Constructs an efficient in-memory graph representation of the circuit
-4. Prepares data structures for subsequent timing analysis
+Implement a complete static timing analysis pipeline that:
 
-Your implementation should handle circuits with up to 150,000 gates efficiently.
+1. Calculates load capacitance for each gate
+2. Performs forward traversal to compute delays and arrival times
+3. Performs backward traversal to compute required times
+4. Calculates slack at each gate output
+5. Identifies the critical path
 
-### Preparation: Understanding the Input Files
+### Debugging System Requirements
 
-#### ISCAS 89/99 Netlist Format
+The implementation must include a debugging system to aid in development and verification. The system should:
 
-The netlist file describes the circuit structure with the following format:
+1. Support multiple debug levels (e.g., ERROR, WARN, INFO, DETAIL, TRACE)
+2. Log messages to a file with timestamps
+3. Include specialized tracing functions for key operations:
+   - Interpolation calculations
+   - Gate delay calculations
+   - Circuit state dumps
+   - Library information dumps
 
+4. Be configurable at runtime and optionally disabled in release builds
+5. Provide detailed information about critical calculations with appropriate context
+
+At minimum, the debugging system should trace:
+- Table lookup and interpolation calculations
+- Gate delay and slew calculations, including scaling for n-input gates
+- Node arrival time and required time calculations
+- Critical path identification steps
+
+### Technical Requirements
+
+#### Input Format
+
+The program should accept two command-line arguments:
+1. Circuit netlist file path
+2. Liberty file path
+
+#### Output Format
+
+The program should generate a file named `ckt_traversal.txt` containing:
 ```
-INPUT ( <pin_name> )
+Circuit delay: <val> ps
+Gate slacks:
+<gate_type>-<gate_id>: <slack_val> ps
 ...
-OUTPUT ( <pin_name> )
-...
-<gate_id> = <gate_type> ( <input_list> )
-...
-<dff_id> = DFF ( <input_pin> )
-...
+Critical path:
+<gate1>, <gate2>, ... <gateN>
 ```
 
-An example snippet:
-```
-INPUT ( 1 )
-INPUT ( 2 )
-OUTPUT ( 25 )
-52 = DFF ( 53 )
-219 = NAND ( 52, 54 )
-```
+#### NLDM Liberty File Format
 
-#### Liberty File Format
+The implementation will specifically handle the provided liberty file format, which has the following structure:
 
-The Liberty file provides timing information for different gate types:
-
-```
-cell(<cell_name>) {
-  capacitance : <value>;
+- Each gate type (NAND, NOR, AND, OR, XOR, INV/NOT, BUF/BUFF) has:
+  - Input capacitance value
+  - 7×7 cell_delay lookup table (LUT)
+  - 7×7 output_slew lookup table (LUT)
   
-  index_1("<input_slew_values>");
-  index_2("<load_capacitance_values>");
-  
-  cell_rise() {
-    values("<delay_values>");
-  }
-  
-  rise_transition() {
-    values("<output_slew_values>");
-  }
-}
+- LUT format:
+  - First index (index_1): input slew values in nanoseconds
+  - Second index (index_2): load capacitance values in femtoFarads
+  - Each LUT contains 49 values representing delay or output slew
+
+#### Assumptions
+
+- Arrival time at primary inputs: 0 ps
+- Input slew at primary inputs: 2 ps
+- Load capacitance at primary outputs: 4 × capacitance of an inverter
+- Required arrival time: 1.1 × circuit delay
+- For n-input gates (where n > 2), multiply the delay from the LUT by (n/2)
+- No differentiation between rise and fall transitions
+- For 1-input gates like INV, BUF, NOT, do not apply the multiplication factor
+
+### Implementation Details
+
+#### Library Handling
+- Parse the liberty file to extract lookup tables for delays and output slew
+- Implement 2D interpolation to handle input slew and load capacitance values not exactly matching table entries
+
+#### 2D Interpolation
+- Clamp input slew and load capacitance values only when finding the nearest table indices
+- Use original unclamped values in the interpolation formula
+- Follow the provided bilinear interpolation formula:
+```
+v = (v11(C2-C)(τ2-τ) + v12(C-C1)(τ2-τ) + v21(C2-C)(τ-τ1) + v22(C-C1)(τ-τ1)) / ((C2-C1)(τ2-τ1))
 ```
 
-### Getting Started
-
-1. Download the starter code package containing:
-   - Directory structure
-   - Header files with class definitions
-   - Makefile
-   - Test circuits of varying sizes
-   - Sample Liberty file
-
-2. Familiarize yourself with the provided code and project structure:
-   - `include/`: Header files defining the interfaces
-   - `src/`: Source files where you'll implement the functionality
-   - `cleaned_iscas89_99_circuits/`: Test circuit files
-   - `NLDM_lib_max2Inp`: Sample Liberty file
-
-### Assignment Tasks
-
-Your specific tasks are:
-
-1. **Implement the TokenScanner class** for high-performance file parsing
-2. **Complete the Parser, NetlistParser, and LibertyParser classes**
-3. **Implement Circuit and Library data structures** to represent the circuit graph and timing models
-4. **Test your implementation** with provided benchmark circuits
-
-Let's proceed with a more detailed breakdown of each task:
-
-## Task 1: Implement the TokenScanner (30 points)
-
-The TokenScanner class provides high-performance parsing capabilities by reading the entire file into memory at once and scanning through it without creating excessive string objects.
-
-File: `include/tokenscanner.hpp` and `src/tokenscanner.cpp`
-
-Key functions to implement:
-- `loadFile()`: Efficiently read an entire file into memory
-- `hasMoreTokens()`: Check if there are more tokens to process
-- `skipWhitespaceAndComments()`: Skip over whitespace and comment lines
-- `nextToken()`: Extract the next token from the buffer
-- `getLine()`: Extract a complete line from the buffer
-- `peekToken()`: Look at the next token without consuming it
-- `consumeIf()`: Conditionally consume a token if it matches expected string
-
-## Task 2: Implement the Parser Classes (30 points)
-
-Implement the base Parser class and its derived classes for specific file formats.
-
-Files:
-- `include/parser.hpp` and `src/parser.cpp`
-- `include/netlistparser.hpp` and `src/netlistparser.cpp`
-- `include/libertyparser.hpp` and `src/libertyparser.cpp`
-
-Key functions to implement:
-- `Parser::initialize()`: Set up the parsing environment
-- `Parser::getLine()`: Get the next line from the file
-- `Parser::tokenize()`: Split a line into tokens
-- `NetlistParser::parse()`: Parse a netlist file
-- `NetlistParser::parseScannerInputs()`: Parse input declarations
-- `NetlistParser::parseScannerOutputs()`: Parse output declarations
-- `NetlistParser::parseScannerDFF()`: Parse flip-flop declarations
-- `NetlistParser::parseScannerGate()`: Parse gate declarations
-- `LibertyParser::parse()`: Parse a liberty file
-
-## Task 3: Implement Circuit and Library Classes (30 points)
-
-Implement the data structures to represent the circuit and timing models.
-
-Files:
-- `include/circuit.hpp` and `src/circuit.cpp`
-- `include/library.hpp` and `src/library.cpp`
-
-Key functions to implement:
-- `Circuit::addNode()`: Add a node to the circuit graph
-- `Circuit::addConnection()`: Add a connection between nodes
-- `Circuit::getNodeCount()`: Get the total number of nodes
-- `Circuit::getPrimaryInputCount()`: Get the number of primary inputs
-- `Circuit::getPrimaryOutputCount()`: Get the number of primary outputs
-- `Circuit::getNodeTypeCounts()`: Get the distribution of node types
-- `Library::DelayTable::interpolate()`: Perform 2D interpolation for timing values
-- `Library::getDelay()`: Get the delay for a gate based on input slew and load capacitance
-- `Library::getOutputSlew()`: Get the output slew for a gate based on input slew and load capacitance
-
-## Task 4: Main Program Integration (10 points)
-
-Integrate your implementations into a complete program that reads circuit and liberty files and reports statistics.
-
-File: `src/main.cpp`
-
-Key functions:
-- `main()`: Parse command-line arguments and orchestrate the parsing process
-- `printCircuitStats()`: Print statistics about the parsed circuit
-- `printLibraryStats()`: Print statistics about the parsed liberty file
-
-## Starter Code (Skeleton Files)
-
-Here are the skeleton files you'll need to complete for this assignment:
-
-### include/tokenscanner.hpp
-
-```cpp
-// tokenscanner.hpp
-#ifndef TOKEN_SCANNER_HPP
-#define TOKEN_SCANNER_HPP
-
-#include <string>
-#include <fstream>
-#include <vector>
-#include <cctype>
-#include <cstring>
-
-class TokenScanner {
-private:
-    std::vector<char> buffer_;
-    const char* current_;
-    const char* end_;
-    
-public:
-    // Constructor that loads file directly
-    explicit TokenScanner(const std::string& filename) {
-        loadFile(filename);
-    }
-    
-    // Constructor that uses an existing buffer
-    TokenScanner(const char* buffer, size_t size) 
-        : buffer_(buffer, buffer + size), 
-          current_(buffer_.data()), 
-          end_(buffer_.data() + size) {}
-    
-    bool loadFile(const std::string& filename);
-    bool hasMoreTokens() const;
-    void skipWhitespaceAndComments();
-    std::string nextToken();
-    std::string getLine();
-    std::string peekToken();
-    bool consumeIf(const std::string& expected);
-    int getLineNumber() const;
-};
-
-#endif // TOKEN_SCANNER_HPP
-```
-
-### include/parser.hpp
-
-```cpp
-// parser.hpp
-#ifndef PARSER_HPP
-#define PARSER_HPP
-
-#include <string>
-#include <vector>
-#include <unordered_map>
-#include <fstream>
-#include <sstream>
-#include <iostream>
-#include <functional>
-#include <optional>
-#include <memory>
-#include "tokenscanner.hpp"
-
-// Forward Declarations
-class Circuit;
-class Library;
-
-// A General Parser Class that can be specialized for different file types
-class Parser {
-protected:
-    std::string filename_;
-    std::ifstream file_;
-    std::unique_ptr<TokenScanner> scanner_;
-    bool useScanner_;
-    
-    // Helper methods for parsing
-    bool openFile();
-    std::string getLine();
-    std::vector<std::string> tokenize(const std::string& line, char delimiter = ' ');
-    
-    // New helper to decide whether to use scanner based on file size
-    bool shouldUseScanner() const;
-
-public:
-    explicit Parser(const std::string& filename, bool useScanner = true) 
-        : filename_(filename), useScanner_(useScanner) {}
-    
-    virtual ~Parser() { if (file_.is_open()) file_.close(); }
-    
-    // Initialize parser - either opens file stream or creates scanner
-    virtual bool initialize();
-    
-    // Pure Virtual Function that derived classes must implement
-    virtual bool parse() = 0;
-};
-
-#endif //PARSER_HPP
-```
-
-### include/netlistparser.hpp
-
-```cpp
-// netlistparser.hpp
-#ifndef NETLIST_PARSER_HPP
-#define NETLIST_PARSER_HPP
-
-#include "parser.hpp"
-#include "circuit.hpp"
-
-class NetlistParser : public Parser {
-private:
-    Circuit& circuit_;
-    
-    // Parsing methods for different circuit elements
-    bool parseInputs(const std::string& line);
-    bool parseOutputs(const std::string& line);
-    bool parseDFF(const std::string& line);
-    bool parseGate(const std::string& line);
-    
-    // Scanner-based parsing methods
-    bool parseScannerInputs(const std::string& line);
-    bool parseScannerOutputs(const std::string& line);
-    bool parseScannerDFF(const std::string& line);
-    bool parseScannerGate(const std::string& line);
-
-public:
-    NetlistParser(const std::string& filename, Circuit& circuit, bool useScanner = true)
-        : Parser(filename, useScanner), circuit_(circuit) {}
-    
-    bool parse() override;
-};
-
-#endif // NETLIST_PARSER_HPP
-```
-
-### include/libertyparser.hpp
-
-```cpp
-// libertyparser.hpp
-#ifndef LIBERTY_PARSER_HPP
-#define LIBERTY_PARSER_HPP
-
-#include "parser.hpp"
-#include "library.hpp"
-
-class LibertyParser : public Parser {
-private:
-    Library& library_;
-    
-    // Scanner-based parsing methods
-    bool parseCell();
-    bool parseInputCapacitance();
-    bool parseIndexValues(std::vector<double>& values, bool isInputSlew);
-    bool parseTable(bool isDelayTable);
-
-public:
-    LibertyParser(const std::string& filename, Library& library, bool useScanner = true)
-        : Parser(filename, useScanner), library_(library) {}
-    
-    bool parse() override;
-};
-
-#endif // LIBERTY_PARSER_HPP
-```
-
-### include/circuit.hpp
-
-```cpp
-// circuit.hpp
-#ifndef CIRCUIT_HPP
-#define CIRCUIT_HPP
-
-#include <string>
-#include <vector>
-#include <unordered_map>
-#include <limits>
-
-// Forward declarations
-class NetlistParser;
-
-class Circuit {
-public:
-    struct Node {
-        std::string name;
-        std::string type;  // Gate type or "INPUT", "OUTPUT", "DFF"
-        int numInputs;
-        std::vector<size_t> fanins;
-        std::vector<size_t> fanouts;
-        double arrivalTime;
-        double requiredTime;
-        double slack;
-        double inputSlew;
-        double outputSlew;
-        double loadCapacitance;
-    };
-
-private:
-    std::vector<Node> nodes_;
-    std::unordered_map<std::string, size_t> nameToId_;
-    std::vector<size_t> primaryInputs_;
-    std::vector<size_t> primaryOutputs_;
-    std::vector<size_t> topoOrder_;
-
-public:
-    Circuit() {}
-    
-    // Methods to add nodes and connections
-    size_t addNode(const std::string& name, const std::string& type, int numInputs = 0);
-    void addConnection(const std::string& from, const std::string& to);
-    
-    // Accessor methods
-    const Node& getNode(size_t id) const { return nodes_[id]; }
-    size_t getNodeId(const std::string& name) const { return nameToId_.at(name); }
-    
-    // Statistics methods
-    size_t getNodeCount() const { return nodes_.size(); }
-    size_t getPrimaryInputCount() const { return primaryInputs_.size(); }
-    size_t getPrimaryOutputCount() const { return primaryOutputs_.size(); }
-    
-    // Get node type distribution
-    std::unordered_map<std::string, int> getNodeTypeCounts() const;
-    
-    // Accessors for iteration
-    const std::vector<Node>& getNodes() const { return nodes_; }
-    const std::vector<size_t>& getPrimaryInputs() const { return primaryInputs_; }
-    const std::vector<size_t>& getPrimaryOutputs() const { return primaryOutputs_; }
-    
-    // Friend class declaration
-    friend class NetlistParser;
-};
-
-#endif // CIRCUIT_HPP
-```
-
-### include/library.hpp
-
-```cpp
-// library.hpp
-#ifndef LIBRARY_HPP
-#define LIBRARY_HPP
-
-#include <string>
-#include <vector>
-#include <unordered_map>
-#include <iostream>
-
-class Library {
-public:
-    struct DelayTable {
-        std::vector<double> inputSlews;
-        std::vector<double> loadCaps;
-        std::vector<std::vector<double>> delayValues;
-        std::vector<std::vector<double>> slewValues;
-        
-        double interpolateDelay(double slew, double load) const;
-        double interpolateSlew(double slew, double load) const;
-        
-    private:
-        double interpolate(double slew, double load, 
-                          const std::vector<std::vector<double>>& table) const;
-    };
-
-private:
-    std::unordered_map<std::string, DelayTable> gateTables_;
-    double inverterCapacitance_;
-
-public:
-    Library() : inverterCapacitance_(0.0) {}
-    
-    double getDelay(const std::string& gateType, double inputSlew, double loadCap, int numInputs = 2) const;
-    double getOutputSlew(const std::string& gateType, double inputSlew, double loadCap, int numInputs = 2) const;
-    double getInverterCapacitance() const { return inverterCapacitance_; }
-    
-    // For debugging
-    void printTables() const;
-
-    // Friend class declaration to allow parser direct access
-    friend class LibertyParser;
-};
-
-#endif // LIBRARY_HPP
-```
-
-### src/main.cpp
-
-```cpp
-// main.cpp
-#include <iostream>
-#include <string>
-#include <chrono>
-#include "circuit.hpp"
-#include "library.hpp"
-#include "netlistparser.hpp"
-#include "libertyparser.hpp"
-
-// Helper function to print circuit statistics
-void printCircuitStats(const Circuit& circuit) {
-    std::cout << "\n====== Circuit Statistics ======\n";
-    std::cout << "Total nodes: " << circuit.getNodeCount() << "\n";
-    std::cout << "Primary inputs: " << circuit.getPrimaryInputCount() << "\n";
-    std::cout << "Primary outputs: " << circuit.getPrimaryOutputCount() << "\n";
-    
-    auto gateTypeCounts = circuit.getNodeTypeCounts();
-    
-    std::cout << "\nGate type distribution:\n";
-    for (const auto& [type, count] : gateTypeCounts) {
-        std::cout << "  " << type << ": " << count << "\n";
-    }
-}
-
-// Helper function to print library statistics
-void printLibraryStats(const Library& library) {
-    std::cout << "\n====== Liberty Statistics ======\n";
-    // Uncomment to print detailed tables (warning: can be verbose)
-    // library.printTables();
-    std::cout << "Inverter capacitance: " << library.getInverterCapacitance() << " fF\n";
-}
-
-int main(int argc, char* argv[]) {
-    if (argc != 3) {
-        std::cerr << "Usage: " << argv[0] << " <circuit_file> <liberty_file>" << std::endl;
-        return 1;
-    }
-    
-    // Create circuit and library objects
-    Circuit circuit;
-    Library library;
-    
-    // Measure parsing time
-    auto startTime = std::chrono::high_resolution_clock::now();
-    
-    // Parse liberty file
-    std::cout << "Parsing liberty file: " << argv[2] << std::endl;
-    LibertyParser libParser(argv[2], library);
-    if (!libParser.parse()) {
-        std::cerr << "Error parsing liberty file: " << argv[2] << std::endl;
-        return 1;
-    }
-    
-    // Parse circuit file
-    std::cout << "Parsing circuit file: " << argv[1] << std::endl;
-    NetlistParser netlistParser(argv[1], circuit);
-    if (!netlistParser.parse()) {
-        std::cerr << "Error parsing circuit file: " << argv[1] << std::endl;
-        return 1;
-    }
-    
-    auto endTime = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-    
-    std::cout << "\nParsing completed in " << duration.count() << " ms" << std::endl;
-    
-    // Print statistics about the parsed data
-    printCircuitStats(circuit);
-    printLibraryStats(library);
-    
-    std::cout << "\nParsing successful. Ready for timing analysis implementation." << std::endl;
-    
-    return 0;
-}
-```
-
-### Makefile
-
-```makefile
-# Compiler and flags
-CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -pedantic -O3
-LDFLAGS = 
-
-# Directories
-SRCDIR = src
-INCDIR = include
-OBJDIR = obj
-BINDIR = bin
-
-# Target executable
-TARGET = $(BINDIR)/sta
-
-# Source files
-SOURCES = $(wildcard $(SRCDIR)/*.cpp)
-OBJECTS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(SOURCES))
-
-# Header files (for dependency tracking)
-HEADERS = $(wildcard $(INCDIR)/*.hpp)
-
-# Default target
-all: directories $(TARGET)
-
-# Create necessary directories
-directories:
-	@mkdir -p $(OBJDIR) $(BINDIR)
-
-# Link the executable
-$(TARGET): $(OBJECTS)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "Linking complete!"
-
-# Compile source files
-$(OBJDIR)/%.o: $(SRCDIR)/%.cpp $(HEADERS)
-	$(CXX) $(CXXFLAGS) -I$(INCDIR) -c -o $@ $
-	@echo "Compiled $<"
-
-# Clean up
-clean:
-	rm -rf $(OBJDIR) $(BINDIR)
-	@echo "Cleanup complete!"
-
-# Run the program with two arguments
-run: all
-	./$(TARGET) $(ARGS)
-
-# Phony targets
-.PHONY: all clean directories run
-```
-
-### Testing Your Implementation
-
-Once you've completed the implementation, you can test your code with the following commands:
-
-```bash
-# Build the program
-make
-
-# Run with a small test circuit
-./bin/sta cleaned_iscas89_99_circuits/c17.isc NLDM_lib_max2Inp
-
-# Run with a medium-sized circuit
-./bin/sta cleaned_iscas89_99_circuits/c7552.isc NLDM_lib_max2Inp
-
-# Run with a very large circuit
-./bin/sta cleaned_iscas89_99_circuits/b19_1.isc NLDM_lib_max2Inp
-```
-
-You should see output similar to:
+#### Gate Delay Calculation
+- Calculate load capacitance for each gate as the sum of input capacitances of its fanout gates
+- Use 2D interpolation for finding delay values from lookup tables
+- Handle n-input gates by scaling the delay appropriately
+
+#### Circuit Traversal
+- Implement topological traversal for both forward and backward passes
+- Handle DFFs by splitting them into dummy input and output nodes
+- Calculate arrival time at each node using the max function
+- Calculate required time at each node using the min function
+
+#### Critical Path Identification
+- Start from the primary output with minimum slack
+- Trace backward, selecting inputs with minimum slack at each step
+
+#### Dead Nodes
+- For gates without fanout, set their load capacitance to the minimum value
+- These nodes will not affect the critical path since they won't appear in the fanin cone of any output
+
+### Implementation Guidance
+
+1. Use appropriate data structures (maps, vectors) for efficient lookup and traversal
+2. Pass complex objects by reference to improve performance
+3. Only allocate memory as needed, avoiding static allocation for large circuits
+4. Handle circuit sizes up to 150,000 gates
+5. Ensure correctness on a range of circuits from small (e.g., c17) to large (e.g., b19_1)
+6. Implement the debugging system to facilitate development and troubleshooting
+
+### Circuit Format Example
 
 ```
-Parsing liberty file: NLDM_lib_max2Inp
-Parsing circuit file: ./cleaned_iscas89_99_circuits/b19_1.isc
-Parsing completed in 228 ms
-====== Circuit Statistics ======
-Total nodes: 219394
-Primary inputs: 24
-Primary outputs: 30
-Gate type distribution:
-  OR: 1440
-  NOR: 729
-  NOT: 39426
-  NAND: 149865
-  AND: 21241
-  DFF: 6642
-  OUTPUT: 27
-  INPUT: 24
-====== Liberty Statistics ======
-Inverter capacitance: 0 fF
-Parsing successful. Ready for timing analysis implementation.
+INPUT(1)
+INPUT(3)
+OUTPUT(22)
+13 = NOR (3, 1)
+22 = NAND (13, 1)
 ```
 
-### Grading Criteria
+This example has:
+- Two input pads (1 and 3)
+- One output pad (22)
+- Two gates: a NOR gate (13) and a NAND gate (22)
 
-Your implementation will be graded on the following criteria:
+Debugging Implementation Guidelines
+The debugging system should be flexible enough to adapt to the data structures chosen by the implementer. Below are guidelines for implementing the debugging system:
 
-1. **Correctness (50%)**
-   - Parser correctly extracts all circuit elements
-   - Circuit graph is correctly constructed
-   - Liberty file timing information is properly stored
-   - All test cases produce expected results
+Initialization:
 
-2. **Performance (25%)**
-   - Parsing large circuits (e.g., b19_1.isc) efficiently
-   - Memory usage remains reasonable for large circuits
-   - Implementation handles the specified 150,000 gate requirement
+The debugging system should be initialized at program startup
+Accept a command-line flag or configuration file setting to determine debug level
+Allow debug output to be directed to a file with appropriate naming based on the circuit
 
-3. **Code Quality (25%)**
-   - Code is well-organized and follows good programming practices
-   - Functions and classes have clear responsibilities
-   - Error handling is robust
-   - Comments explain complex sections of code
 
-### Submission Guidelines
+Debug Levels:
 
-Submit your assignment as a zip file containing:
-1. All source files (*.cpp)
-2. All header files (*.hpp)
-3. The Makefile
-4. A README.md file explaining:
-   - How to compile and run your program
-   - Any implementation decisions or optimizations you made
-   - Any challenges you encountered and how you solved them
-   - Performance analysis of your implementation
+ERROR: Critical errors that prevent correct operation
+WARN: Issues that may affect results but allow continued execution
+INFO: Basic progress information (file loading, phase completion)
+DETAIL: Intermediate calculation results and state transitions
+TRACE: Full step-by-step tracing of all calculations
 
-### Tips for Success
 
-1. **Start with small test cases**: Begin with the simplest circuits to get your parser working before moving to larger ones.
+Key Logging Points:
 
-2. **Implement incrementally**: First parse primary inputs and outputs, then gates, then flip-flops.
+Library file parsing (gate types, capacitance values, table dimensions)
+Circuit netlist parsing (node IDs, gate types, connectivity)
+Forward traversal calculations (per node):
 
-3. **Test frequently**: Check that each component is working correctly before moving to the next.
+Input slew propagation
+Load capacitance calculation
+Gate delay calculation including interpolation
+Arrival time updates
 
-4. **Focus on data structures**: Choose appropriate data structures for efficient circuit representation.
 
-5. **Consider performance early**: The parsing phase needs to be efficient to handle large circuits.
+Backward traversal calculations (per node):
 
-6. **Debug systematically**: Use print statements or a debugger to trace through the parsing process.
+Required time propagation
+Slack calculation
 
-Good luck with your implementation! This assignment will provide valuable experience in building performance-critical tools for VLSI design.
+
+Critical path identification
+
+
+Data Visualization:
+
+Provide methods to dump the state of key data structures
+Format output for readability (aligned columns, appropriate precision)
+Include context information (node IDs, gate types) with values
+
+
+Performance Considerations:
+
+Use conditional compilation to eliminate debug code in release builds
+Ensure logging operations don't significantly impact performance
+
+
+
+Example Debug Output Format
+For interpolation operations:
+Copy[TRACE] Interpolating delay for NAND2 gate (Node ID: 143)
+  Input slew: 17.32 ps (0.01732 ns)
+  Load capacitance: 4.76 fF
+  Table bounds: 
+    Slew indices: [0.00472397, 0.0171859] ns (index 1-2)
+    Load indices: [3.709790, 7.419590] fF (index 2-3)
+  Table values at corners:
+    v11 (i1,j1): 0.0173000 ns
+    v12 (i1,j2): 0.0263569 ns
+    v21 (i2,j1): 0.0236392 ns
+    v22 (i2,j2): 0.0325101 ns
+  Interpolated result: 23.974 ps
+For gate delay calculation:
+Copy[DETAIL] Gate delay calculation for Node ID: 143 (NAND3)
+  Gate type: NAND
+  Num inputs: 3
+  Scaling factor: 1.5 (n/2)
+  Input slew: 17.32 ps
+  Load capacitance: 4.76 fF
+  Base delay (from LUT): 23.974 ps
+  Scaled delay: 35.961 ps
+For forward traversal:
+Copy[INFO] Forward traversal - calculating arrival time for Node ID: 143
+  Gate type: NAND3
+  Fanin nodes: 45, 67, 98
+  Fanin arrival times: 78.32 ps, 92.45 ps, 83.17 ps
+  Path delays: 35.96 ps, 37.22 ps, 36.58 ps
+  Arrival times through each path: 114.28 ps, 129.67 ps, 119.75 ps
+  Maximum arrival time selected: 129.67 ps
+Integration with Solution
+The debugging system should be integrated with the main STA implementation in a way that:
+
+Provides useful information during development
+Helps verify correctness of calculations
+Facilitates troubleshooting when results don't match expectations
+Can be easily enabled/disabled without modifying the core algorithm
+
+Each phase of the STA algorithm (parsing, forward traversal, backward traversal, critical path) should include appropriate debug output at different levels to provide visibility into the internal operations while allowing control over the verbosity of the output.

@@ -1,37 +1,39 @@
-// include/GateLibrary.hpp
-#ifndef GATE_LIBRARY_H
-#define GATE_LIBRARY_H
+#pragma once
 
-#include "Gate.hpp" // <<<--- ADDED INCLUDE FOR Gate DEFINITION
-#include <unordered_map>
+#include "Gate.hpp"
 #include <string>
+#include <unordered_map>
 #include <vector>
-#include <fstream>
-#include <stdexcept> // Included for completeness, though not strictly needed for declarations
-
-// Forward declaration not needed if Gate.hpp is included
-// class Gate;
+#include <fstream> // For file parsing
+#include <ostream> // For ostream
 
 class GateLibrary {
+public:
+    GateLibrary() = default;
+
+    // Parses the specified liberty file
+    bool parseLibertyFile(const std::string& filename);
+
+    // Retrieves a gate definition by name
+    // Returns nullptr if the gate type is not found
+    const Gate* getGate(const std::string& gateName) const;
+
+    // Get the capacitance of a specific gate (e.g., "INV")
+    // Used for PO load calculation
+    double getInverterInputCapacitance() const;
+    
+    // Dump the parsed library data to the given output stream
+    void dumpLibraryToStream(std::ostream& out) const;
+
 private:
+    // Storage for gate types, mapping gate name (e.g., "NAND2") to Gate object
     std::unordered_map<std::string, Gate> gates_;
 
-    // --- Private Parsing Helper Declarations ---
-    void parseCellHeader(const std::string& line, std::string& currentGateName, Gate& currentGate);
-    void parseCapacitance(const std::string& line, Gate& currentGate);
-    void parseIndex(const std::string& line, std::vector<double>& indexVector, const std::string& indexName);
-    void parseTableValues(std::ifstream& ifs, std::string& line, int& lineNumber, std::vector<std::vector<double>>& table, const std::string& tableName, const std::string& gateName);
-    bool parseTimingBlock(std::ifstream& ifs, std::string& currentLine, int& lineNumber, int& braceLevel,
-                           Gate& currentGate, const std::string& blockType,
-                           std::vector<double>& index1Vec, std::vector<double>& index2Vec,
-                           std::vector<std::vector<double>>& tableVec, const std::string& gateName);
+    // Helper parsing functions (implement in GateLibrary.cpp)
+    void parseCell(std::ifstream& fileStream, const std::string& cellName);
+    std::vector<double> parseTableValues(std::ifstream& fileStream, const std::string& firstLine);
+    std::vector<double> parseIndexValues(const std::string& line);
 
-
-public:
-    // --- Public Method Declarations ---
-    void loadFromFile(const std::string& filename);
-    const Gate& getGate(const std::string& name) const;
-    bool hasGate(const std::string& name) const;
+    // Helper to clean up lines (remove comments, extra whitespace)
+    std::string cleanLine(const std::string& line);
 };
-
-#endif // GATE_LIBRARY_H

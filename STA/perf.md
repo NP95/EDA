@@ -1,8 +1,27 @@
-# STA Implementation Performance Enhancement Plan
+# STA Implementation Performance Enhancement Plan: Agent Guidelines
 
 ## Executive Summary
 
-This document outlines a multi-phase strategy to enhance the performance of our Static Timing Analysis (STA) implementation. The current implementation employs good software engineering practices with an object-oriented design, but shows a 4-8x performance gap compared to the reference solution. Through targeted optimizations, we aim to significantly reduce this gap while maintaining the architectural integrity and extensibility of the codebase.
+This document outlines a multi-phase strategy to enhance the performance of our Static Timing Analysis (STA) implementation. The current implementation employs good software engineering practices with an object-oriented design but shows a 4-8x performance gap compared to the reference solution. Through targeted optimizations, we aim to significantly reduce this gap while maintaining the architectural integrity and extensibility of the codebase.
+
+## Guidelines for AI Agents
+
+AI agents assisting with this optimization project **MUST** adhere to the following requirements:
+
+1. **Code Instrumentation**: Use ONLY the existing Debug library for all code instrumentation. Do not add new logging frameworks or instrumentation tools.
+   ```cpp
+   // CORRECT way to add instrumentation
+   STA_TRACE("Processing node " + std::to_string(nodeId));
+   
+   // INCORRECT - do not add custom print statements
+   // std::cout << "Processing node " << nodeId << std::endl;
+   ```
+
+2. **Validation**: The existing validation script (`validate_multi_benchmark.sh`) MUST be used as the basis for all validation tests. Extend this script when needed but maintain compatibility.
+
+3. **Benchmarking**: Always measure performance against the provided reference implementation using the validation script.
+
+4. **Regression Testing**: Prior to each optimization, generate baseline results to compare against after changes.
 
 ## Current Performance Assessment
 
@@ -199,123 +218,65 @@ Our approach divides optimizations into four phases, prioritized by impact and i
 | Phase 3 | 20-40% | 90-150% | 0.23x-0.60x (1.7-4.3x slower) |
 | Phase 4 | 40-120% | 130-270% | 0.28x-0.89x (1.1-3.6x slower) |
 
-With all optimizations successfully implemented, we expect to approach the reference solution's performance while maintaining our superior object-oriented design and extensibility.
-
-## Implementation Plan
-
-### Timeline
-
-| Phase | Duration | Dependencies | Milestones |
-|-------|----------|--------------|------------|
-| Phase 1 | 1-2 weeks | None | Cached load capacitance, Debug removal |
-| Phase 2 | 2-3 weeks | Phase 1 | Vector-based storage, Interpolation cache |
-| Phase 3 | 2-4 weeks | Phase 2 | Optimized traversal algorithms |
-| Phase 4 | 3-5 weeks | Phase 3 | Thread-safe structures, Parallel traversal |
-
 ## Validation Strategy
 
-### Comprehensive Validation Framework
+### Core Validation Framework
 
-We will implement a robust validation framework that executes at the end of each phase to ensure correctness is maintained while improving performance.
+**AI agents MUST base all validation on the existing validation script:**
+```bash
+# Starting point for all validation must be the existing script
+./validate_multi_benchmark.sh
+```
 
-#### Phase 1 Validation
+### Phase 1 Validation Requirements
 
-1. **Correctness Checks**
-   - **Baseline Generation**: Create golden results using the current implementation on all benchmark circuits
-   - **Automated Testing**: Compare optimized implementation results with baseline
-     - Circuit delays must match exactly for c-series benchmarks 
-     - Circuit delays must be within 1% for b-series benchmarks
-     - Critical paths must match exactly for c-series benchmarks
-   - **Edge Case Testing**: Validate specialized circuits that test caching mechanisms
-     - Circuits with high fanout nodes to test load capacitance caching
-     - Circuits with repeated gate types to test interpolation optimization
+AI agents implementing Phase 1 optimizations MUST:
 
-2. **Regression Prevention**
-   - Create automated test suite that runs on all benchmark circuits
-   - Implement continuous integration to run tests on each commit
-   - Generate detailed comparison reports for any differences
+1. **Establish Baselines**
+   ```bash
+   # Generate baseline results before any optimization
+   ./validate_multi_benchmark.sh > baseline_results.txt
+   ```
 
-3. **Performance Validation**
-   - Measure execution time before and after each optimization
-   - Profile optimized code to verify hotspot improvements
-   - Create performance regression tests to prevent future slowdowns
+2. **Add Debug Instrumentation Points**
+   ```cpp
+   // Add verification points using Debug library
+   STA_DETAIL("Load capacitance for node " + std::to_string(nodeId) + 
+              ": calculated=" + std::to_string(calculatedLoad) + 
+              ", cached=" + std::to_string(cachedLoad));
+   ```
 
-#### Phase 2 Validation
+3. **Create Optimization-Specific Validation Tests**
+   - Extend the validation script to add special cases for caching
+   - Add temporary verification code (using Debug library only)
+   - Create output comparison utilities based on the existing script
 
-1. **Correctness Checks**
-   - **Data Structure Integrity**: Validate vector-based storage produces identical results to map-based storage
-   - **Value Consistency**: Verify cached calculation results match non-cached results
-   - **Bit-exact Verification**: Compare node values at each stage of STA process with baseline
+4. **Check Numerical Correctness**
+   ```bash
+   # Compare numerical outputs with baseline (extend existing script)
+   ./validate_multi_benchmark.sh | ./compare_with_baseline.sh baseline_results.txt
+   ```
 
-2. **Structural Testing**
-   - Create test cases that verify correct operation with:
-     - Sparse node ID distributions
-     - Very large node IDs
-     - Circuits with complex reconvergent paths
-   - Validate pre-allocation strategies work with various circuit sizes
+### Phase 2-4 Validation Requirements
 
-3. **Memory Profiling**
-   - Analyze memory usage before and after optimizations
-   - Verify no memory leaks are introduced
-   - Ensure cache size remains bounded for large circuits
+For subsequent phases, similar principles apply, with additional requirements specific to each phase. AI agents MUST:
 
-#### Phase 3 Validation
+1. **Always build upon the existing validation script**
+2. **Use the Debug library exclusively for instrumentation**
+3. **Compare against the previous phase as a baseline**
+4. **Document all validation results**
 
-1. **Algorithm Correctness**
-   - **Golden Results Comparison**: Verify new algorithms produce identical results to previous phase
-   - **Traversal Order Validation**: Confirm optimized traversal maintains correct dependencies
-   - **Critical Path Verification**: Compare multiple critical path candidates with baseline
+## Continuous Integration
 
-2. **Edge Case Validation**
-   - Test circuits with:
-     - Multiple equally critical paths
-     - Complex reconvergent fanout structures
-     - Special timing scenarios (zero-delay paths, etc.)
-   - Verify behavior matches baseline implementation
+AI agents should recommend and help implement a continuous integration pipeline that:
 
-3. **Incremental Testing**
-   - Validate each algorithm change individually before integration
-   - Create microbenchmarks for specific algorithm optimizations
-   - Compare intermediate results at key algorithm stages
-
-#### Phase 4 Validation
-
-1. **Thread Safety Verification**
-   - **Determinism Testing**: Ensure results are consistent across multiple runs
-   - **Race Condition Testing**: Stress-test with randomized thread scheduling
-   - **Thread Count Scaling**: Verify correctness with varying thread counts (1, 2, 4, 8, etc.)
-
-2. **Parallel Correctness Testing**
-   - Create special test circuits designed to expose concurrency issues
-   - Compare parallel execution results with sequential execution
-   - Test synchronization mechanism correctness
-
-3. **Scalability Validation**
-   - Measure performance scaling with increasing thread count
-   - Test with circuits of varying sizes to verify parallel efficiency
-   - Identify synchronization bottlenecks
-
-### Continuous Integration and Regression Prevention
-
-Throughout all phases, we will maintain a comprehensive continuous integration pipeline:
-
-1. **Automated Testing**
-   - Run validation tests on every commit
-   - Generate comparison reports for correctness and performance
-   - Flag regressions automatically
-
-2. **Benchmark Suite**
-   - Maintain baseline results for all benchmark circuits
-   - Track performance metrics across optimization phases
-   - Identify unexpected performance regressions
-
-3. **Validation Documentation**
-   - Document all validation procedures
-   - Maintain test case descriptions and expected results
-   - Create validation reports for each phase completion
+1. **Runs the existing validation script on each commit**
+2. **Compares results with baselines from previous phases**
+3. **Monitors both performance and correctness metrics**
+4. **Generates detailed reports for human review**
 
 ## Conclusion
 
-This performance enhancement plan provides a systematic approach to significantly improve our STA implementation's performance while preserving its architectural integrity. By implementing a robust validation strategy at each phase, we ensure that correctness is maintained throughout the optimization process.
+This performance enhancement plan provides a systematic approach to significantly improve our STA implementation's performance while preserving its architectural integrity. 
 
-The validation framework will give us confidence that our optimizations improve performance without sacrificing accuracy, allowing us to close the performance gap with the reference solution while maintaining our superior software engineering practices.
+AI agents working on this project MUST adhere to the instrumentation and validation guidelines to ensure consistency, correctness, and traceability throughout the optimization process.
