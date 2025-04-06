@@ -9,6 +9,9 @@
 #include <locale>    // For std::locale
 #include <queue>     // For topological sort
 #include <map>       // For topological sort (in-degree count)
+#include <limits>    // For numeric_limits
+#include <numeric>   // For std::accumulate
+#include <algorithm> // For std::min_element
 
 // Custom locale for parsing with special delimiters (like reference)
 struct ParenCommaEqSpace : std::ctype<char> {
@@ -300,7 +303,7 @@ const std::vector<int>& Circuit::getTopologicalOrder() const {
 // --- Added Debug Logging for Phase 0B Validation ---
 void Circuit::logCircuitDetails() {
     STA_LOG(DebugLevel::INFO, "--- Circuit Graph Details ---");
-    STA_LOG(DebugLevel::INFO, "Total nodes created: " << nodes_.size());
+    STA_LOG(DebugLevel::INFO, "Total nodes created: {}", nodes_.size());
 
     // Log details for each node
     // Sort nodes by ID for consistent output
@@ -325,62 +328,394 @@ void Circuit::logCircuitDetails() {
             default:                nodeTypeStr = "UNKNOWN"; break;
         }
         
-        std::stringstream detailSS;
-        detailSS << "Node [" << nodeId << "]: Type=" << nodeTypeStr;
         if (node->getType() == NodeType::GATE) {
-            detailSS << ", GateType=" << node->getGateType();
-            detailSS << ", FaninIDs=[";
+            std::string faninStr;
             const auto& fanins = node->getFaninIds();
             for (size_t i = 0; i < fanins.size(); ++i) {
-                detailSS << fanins[i] << (i == fanins.size() - 1 ? "" : ", ");
+                if (i > 0) faninStr += ", ";
+                faninStr += std::to_string(fanins[i]);
             }
-            detailSS << "]";
-            // Optionally add fanout info too
-            // detailSS << ", FanoutIDs=[";
-            // const auto& fanouts = node->getFanoutIds();
-            // for (size_t i = 0; i < fanouts.size(); ++i) {
-            //     detailSS << fanouts[i] << (i == fanouts.size() - 1 ? "" : ", ");
-            // }
-            // detailSS << "]";
+            
+            STA_LOG(DebugLevel::DETAIL, "Node [{}]: Type={}, GateType={}, FaninIDs=[{}]", 
+                    nodeId, nodeTypeStr, node->getGateType(), faninStr);
+        } else {
+            STA_LOG(DebugLevel::DETAIL, "Node [{}]: Type={}", nodeId, nodeTypeStr);
         }
-        STA_LOG(DebugLevel::DETAIL, detailSS.str());
     }
 
     // Log topological order
-    std::stringstream topoSS;
-    topoSS << "Topological Order: [";
+    std::string topoStr;
     for (size_t i = 0; i < topologicalOrder_.size(); ++i) {
-        topoSS << topologicalOrder_[i] << (i == topologicalOrder_.size() - 1 ? "" : ", ");
+        if (i > 0) topoStr += ", ";
+        topoStr += std::to_string(topologicalOrder_[i]);
     }
-    topoSS << "]";
-    STA_LOG(DebugLevel::INFO, topoSS.str());
+    
+    STA_LOG(DebugLevel::INFO, "Topological Order: [{}]", topoStr);
     STA_LOG(DebugLevel::INFO, "------------------------------");
 }
 
 // --- Placeholder STA function implementations ---
 
+// Calculate load capacitance for all driving nodes (Gates and DFF Outputs)
 void Circuit::calculateLoadCapacitances() {
-    std::cerr << "STA Function: calculateLoadCapacitances() - Not Yet Implemented" << std::endl;
+    STA_LOG(DebugLevel::INFO, "Starting load capacitance calculation...");
+
+    // 1. Get necessary values from the library
+    const Gate* invGate = library_->getGate("INV"); // Use INV as reference
+    if (!invGate) {
+        STA_LOG(DebugLevel::ERROR, "Cannot calculate loads: 'INV' gate not found in library.");
+        return;
+    }
+    double inverterInputCap = invGate->getInputCapacitance();
+    double dffInputCapAssumption = inverterInputCap; // Assumption for DFF D-pin load
+    double primaryOutputLoad = Constants::OUTPUT_LOAD_CAP_MULTIPLIER * inverterInputCap;
+
+    // Find the minimum load capacitance value from the library's tables
+    const auto& loadIndices = invGate->getOutputLoadIndices();
+    double minLoadCap = std::numeric_limits<double>::max();
+     if (!loadIndices.empty()) {
+         // The spec says index_2 are load cap values in fF.
+         auto minIt = std::min_element(loadIndices.begin(), loadIndices.end());
+         if (minIt != loadIndices.end()) {
+             minLoadCap = *minIt;
+             STA_LOG(DebugLevel::TRACE, "Minimum load capacitance from library table indices: {:.5f} fF", minLoadCap);
+         } else {
+             STA_LOG(DebugLevel::WARN, "Could not determine minimum load capacitance from INV gate indices. Using 0.");
+             minLoadCap = 0.0; // Fallback, though unlikely
+         }
+    } else {
+        STA_LOG(DebugLevel::WARN, "INV gate load indices are empty. Cannot determine minimum load capacitance. Using 0.");
+        minLoadCap = 0.0; // Fallback
+    }
+
+    STA_LOG(DebugLevel::DETAIL, "Using Inverter Input Cap: {:.5f} fF", inverterInputCap);
+    STA_LOG(DebugLevel::DETAIL, "Using DFF D-Input Cap Assumption: {:.5f} fF", dffInputCapAssumption);
+    STA_LOG(DebugLevel::DETAIL, "Using Primary Output Load: {:.5f} fF", primaryOutputLoad);
+    STA_LOG(DebugLevel::DETAIL, "Using Minimum Load Cap (for no fanout): {:.5f} fF", minLoadCap);
+
+    // Set prescribed load capacitance for primary output nodes first
+    for (int poId : primaryOutputIds_) {
+        Node* poNode = getNode(poId);
+        if (!poNode) {
+            STA_LOG(DebugLevel::WARN, "Primary output node {} not found during load capacitance calculation.", poId);
+            continue;
+        }
+        
+        // Set PO load capacitance
+        poNode->setLoadCapacitance(primaryOutputLoad);
+        STA_LOG(DebugLevel::DETAIL, "Node ID: {} (PO) -> Load Cap = {:.5f} fF (4 * C_in(INV))", 
+                poId, primaryOutputLoad);
+    }
+
+    // 2. Iterate through all nodes in the circuit
+    for (auto const& [nodeId, nodeUPtr] : nodes_) {
+        Node* node = nodeUPtr.get();
+        NodeType nodeType = node->getType();
+
+        // Skip OUTPUT type nodes since we've already handled them above
+        // We only calculate load for nodes that *drive* others: Gates and DFF Outputs
+        if (nodeType == NodeType::GATE || nodeType == NodeType::DFF_OUTPUT) {
+            // Skip if this node is also a PO (already handled)
+            if (std::find(primaryOutputIds_.begin(), primaryOutputIds_.end(), nodeId) != primaryOutputIds_.end()) {
+                continue;
+            }
+            
+            double currentLoadCap = 0.0;
+            const auto& fanoutIds = node->getFanoutIds();
+
+            if (fanoutIds.empty()) {
+                // Specification: "For gates without fanout, set their load capacitance to the minimum value"
+                currentLoadCap = minLoadCap;
+                STA_LOG(DebugLevel::DETAIL, "Node ID: {} ({}, no fanout) -> Load Cap = {:.5f} fF (min library load)",
+                        node->getId(), node->getGateType().empty() ? "DFF_OUT" : node->getGateType(), currentLoadCap);
+            } else {
+                std::string fanoutDetailStr; // For logging
+                for (int fanoutId : fanoutIds) {
+                    Node* fanoutNode = getNode(fanoutId); // Use the helper getter
+                    if (!fanoutNode) {
+                        STA_LOG(DebugLevel::WARN, "Node ID: {} ({}) - Fanout node ID {} not found during load calculation. Skipping.",
+                                node->getId(), node->getGateType(), fanoutId);
+                        continue;
+                    }
+
+                    NodeType fanoutType = fanoutNode->getType();
+                    double capToAdd = 0.0;
+                    std::string contribStr;
+
+                    if (fanoutType == NodeType::GATE) {
+                        const std::string& fanoutGateTypeStr = fanoutNode->getGateType();
+                        const Gate* fanoutGateInfo = library_->getGate(fanoutGateTypeStr);
+                        if (fanoutGateInfo) {
+                            capToAdd = fanoutGateInfo->getInputCapacitance();
+                            contribStr = fmt::format("GATE:{} ({:.5f}fF)", fanoutId, capToAdd);
+                        } else {
+                            STA_LOG(DebugLevel::WARN, "Node ID: {} ({}) - Fanout gate ID {} has unknown type '{}'. Skipping its contribution.",
+                                    node->getId(), node->getGateType(), fanoutId, fanoutGateTypeStr);
+                        }
+                    } else if (fanoutType == NodeType::DFF_INPUT) {
+                        // Apply DFF input capacitance assumption
+                        capToAdd = dffInputCapAssumption;
+                        contribStr = fmt::format("DFF_IN:{} ({:.5f}fF)", fanoutId, capToAdd);
+                    } else if (fanoutType == NodeType::OUTPUT) {
+                        // Apply primary output load
+                        capToAdd = primaryOutputLoad;
+                        contribStr = fmt::format("PO:{} ({:.5f}fF)", fanoutId, capToAdd);
+                    } else {
+                        // This case (e.g., fanout is INPUT or DFF_OUTPUT) shouldn't logically occur
+                         STA_LOG(DebugLevel::WARN, "Node ID: {} ({}) - Fanout node ID {} has unexpected type {}. Ignoring.",
+                                node->getId(), node->getGateType(), fanoutId, static_cast<int>(fanoutType));
+                    }
+
+                    currentLoadCap += capToAdd;
+                    if (!contribStr.empty()) {
+                        if (!fanoutDetailStr.empty()) fanoutDetailStr += ", ";
+                        fanoutDetailStr += contribStr;
+                    }
+                } // End fanout loop
+
+                STA_LOG(DebugLevel::DETAIL, "Node ID: {} ({}) -> Load Cap = {:.5f} fF (From: [{}])",
+                        node->getId(), node->getGateType().empty() ? "DFF_OUT" : node->getGateType(), currentLoadCap, fanoutDetailStr);
+
+            } // End else (has fanout)
+
+            // Set the calculated capacitance on the node
+            node->setLoadCapacitance(currentLoadCap);
+
+        } // End if (node is GATE or DFF_OUTPUT)
+    } // End node iteration loop
+
+    STA_LOG(DebugLevel::INFO, "Load capacitance calculation finished.");
 }
 
-void Circuit::computeArrivalTimes() {
-    std::cerr << "STA Function: computeArrivalTimes() - Not Yet Implemented" << std::endl;
-}
-
+// Placeholder for forward traversal
 void Circuit::computeRequiredTimes(double circuitDelay) {
-    std::cerr << "STA Function: computeRequiredTimes(" << circuitDelay << ") - Not Yet Implemented" << std::endl;
+    STA_LOG(DebugLevel::WARN, "computeRequiredTimes() - Not implemented yet.");
+    // Implementation will go here
 }
 
+// Placeholder for slack calculation
 void Circuit::computeSlacks() {
-    std::cerr << "STA Function: computeSlacks() - Not Yet Implemented" << std::endl;
+    STA_LOG(DebugLevel::WARN, "computeSlacks() - Not implemented yet.");
+    // Implementation will go here
 }
 
+// Placeholder for critical path finding
 std::vector<int> Circuit::findCriticalPath() {
-    std::cerr << "STA Function: findCriticalPath() - Not Yet Implemented" << std::endl;
-    return {};
+    STA_LOG(DebugLevel::WARN, "findCriticalPath() - Not implemented yet.");
+    return {}; // Return empty path for now
 }
 
+// Placeholder for getting circuit delay
+// Return the maximum circuit delay, calculated during forward traversal
 double Circuit::getCircuitDelay() const {
-     std::cerr << "STA Function: getCircuitDelay() - Returning placeholder value" << std::endl;
-    return maxCircuitDelay_; // Return the stored max delay
+    if (maxCircuitDelay_ <= 0.0) {
+        STA_LOG(DebugLevel::WARN, "getCircuitDelay() - Circuit delay has not been calculated yet or is zero.");
+    }
+    return maxCircuitDelay_; // Updated by computeArrivalTimes
+}
+
+// Forward traversal to compute arrival times
+void Circuit::computeArrivalTimes() {
+    STA_LOG(DebugLevel::INFO, "Starting arrival time calculation (forward traversal)...");
+    
+    // Ensure topological order is available
+    if (topologicalOrder_.empty()) {
+        STA_LOG(DebugLevel::ERROR, "Cannot compute arrival times - topological sort not performed!");
+        return;
+    }
+    
+    // Reset max circuit delay
+    maxCircuitDelay_ = 0.0;
+    
+    // Traverse nodes in topological order
+    for (int nodeId : topologicalOrder_) {
+        Node* node = getNode(nodeId);
+        if (!node) {
+            STA_LOG(DebugLevel::ERROR, "Node ID {} not found during arrival time calculation. Skipping.", nodeId);
+            continue;
+        }
+        
+        NodeType nodeType = node->getType();
+        
+        // --- Primary Inputs ---
+        if (nodeType == NodeType::INPUT || nodeType == NodeType::DFF_OUTPUT) {
+            // Set arrival time to 0.0 for primary inputs and DFF outputs
+            node->setArrivalTime(Constants::DEFAULT_INPUT_ARRIVAL_TIME_PS);
+            
+            // Set output slew to default (2.0ps) for primary inputs and DFF outputs
+            // (Note: the slew should have been set during netlist parsing for PIs)
+            node->setSlew(Constants::DEFAULT_INPUT_SLEW_PS);
+            
+            STA_LOG(DebugLevel::DETAIL, "Node ID: {} (PI/DFF_OUT) -> Arrival time = {:.5f} ps, Slew = {:.5f} ps (default values)",
+                   nodeId, node->getArrivalTime(), node->getSlew());
+            continue;
+        }
+        
+        // --- Gates and Primary Outputs ---
+        // Note: A Primary Output can also be a gate output, so we need to calculate its delay
+        if (nodeType == NodeType::GATE || nodeType == NodeType::OUTPUT) {
+            const std::vector<int>& faninIds = node->getFaninIds();
+            
+            // Skip if node has no fan-ins (shouldn't happen for gates, but being defensive)
+            if (faninIds.empty()) {
+                STA_LOG(DebugLevel::WARN, "Node ID: {} ({}) has no fan-ins during arrival time calculation. Skipping.",
+                        nodeId, node->getGateType());
+                continue;
+            }
+            
+            // Find max arrival time and slew among fan-in nodes
+            double maxFaninArrivalTime = 0.0;
+            double maxFaninSlew = 0.0;
+            Node* maxArrivalFanin = nullptr;
+            
+            for (int faninId : faninIds) {
+                Node* faninNode = getNode(faninId);
+                if (!faninNode) {
+                    STA_LOG(DebugLevel::WARN, "Fan-in node ID {} not found during arrival time calculation for node {}. Skipping.",
+                            faninId, nodeId);
+                    continue;
+                }
+                
+                double faninArrivalTime = faninNode->getArrivalTime();
+                double faninSlew = faninNode->getSlew();
+                
+                STA_LOG(DebugLevel::TRACE, "  Fan-in node {} has arrival time {:.5f} ps, slew {:.5f} ps",
+                        faninId, faninArrivalTime, faninSlew);
+                
+                if (faninArrivalTime > maxFaninArrivalTime) {
+                    maxFaninArrivalTime = faninArrivalTime;
+                    maxArrivalFanin = faninNode;
+                }
+                
+                if (faninSlew > maxFaninSlew) {
+                    maxFaninSlew = faninSlew;
+                }
+            }
+            
+            STA_LOG(DebugLevel::DETAIL, "Node ID: {} ({}) -> Max fan-in arrival time = {:.5f} ps (from node {}), Max input slew = {:.5f} ps",
+                    nodeId, node->getGateType(), maxFaninArrivalTime, 
+                    maxArrivalFanin ? maxArrivalFanin->getId() : -1, maxFaninSlew);
+            
+            double nodeArrivalTime = 0.0;
+            double nodeOutputSlew = 0.0;
+            
+            // If it's a primary output that's not a gate (just a pin), use the driver's arrival time
+            if (nodeType == NodeType::OUTPUT && node->getGateType().empty()) {
+                // This is a pure PO without a gate function - just use the driver's arrival time
+                nodeArrivalTime = maxFaninArrivalTime;
+                nodeOutputSlew = maxFaninSlew; // Output slew same as input slew
+                
+                STA_LOG(DebugLevel::DETAIL, "Node ID: {} (Pure PO) -> Arrival time = {:.5f} ps, Slew = {:.5f} ps (from driver)",
+                        nodeId, nodeArrivalTime, nodeOutputSlew);
+            }
+            // Otherwise, calculate delay through the gate
+            else if (!node->getGateType().empty()) {
+                // Get the gate information from the library
+                const Gate* gateInfo = library_->getGate(node->getGateType());
+                if (!gateInfo) {
+                    STA_LOG(DebugLevel::ERROR, "Gate type '{}' not found in library for node {}. Skipping arrival time calculation.",
+                            node->getGateType(), nodeId);
+                    continue;
+                }
+                
+                // Get the load capacitance calculated earlier
+                double loadCapacitance = node->getLoadCapacitance();
+                
+                // Calculate gate delay
+                double baseGateDelay = gateInfo->getDelay(maxFaninSlew, loadCapacitance);
+                
+                // Apply scaling for n-input gates (n > 2), but not for 1-input gates
+                double scaledGateDelay = baseGateDelay;
+                int numInputs = gateInfo->getNumInputs();
+                
+                if (numInputs > 2) {
+                    // Multiply by (n/2) as per spec
+                    scaledGateDelay = baseGateDelay * (numInputs / 2.0);
+                    STA_LOG(DebugLevel::DETAIL, "  Gate scaling applied: Base delay {:.5f} ps × ({}/{:.1f}) = {:.5f} ps", 
+                            baseGateDelay, numInputs, 2.0, scaledGateDelay);
+                } 
+                else if (numInputs == 1) {
+                    // No scaling for 1-input gates (INV, BUF, NOT)
+                    STA_LOG(DebugLevel::DETAIL, "  No gate scaling needed for 1-input gate ({}).", node->getGateType());
+                }
+                else {
+                    // No scaling needed for 2-input gates
+                    STA_LOG(DebugLevel::DETAIL, "  No gate scaling needed for 2-input gate ({}).", node->getGateType());
+                }
+                
+                // Calculate output slew
+                nodeOutputSlew = gateInfo->getOutputSlew(maxFaninSlew, loadCapacitance);
+                
+                // Calculate arrival time as max fan-in arrival time + gate delay
+                nodeArrivalTime = maxFaninArrivalTime + scaledGateDelay;
+                
+                STA_LOG(DebugLevel::DETAIL, "Node ID: {} ({}) -> Delay = {:.5f} ps, Arrival time = {:.5f} ps, Output slew = {:.5f} ps",
+                        nodeId, node->getGateType(), scaledGateDelay, nodeArrivalTime, nodeOutputSlew);
+            }
+            
+            // Set the calculated arrival time and output slew
+            node->setArrivalTime(nodeArrivalTime);
+            node->setSlew(nodeOutputSlew);
+            
+            // Update max circuit delay if this is a primary output
+            if (nodeType == NodeType::OUTPUT || std::find(primaryOutputIds_.begin(), primaryOutputIds_.end(), nodeId) != primaryOutputIds_.end()) {
+                if (nodeArrivalTime > maxCircuitDelay_) {
+                    maxCircuitDelay_ = nodeArrivalTime;
+                    STA_LOG(DebugLevel::INFO, "New max circuit delay: {:.5f} ps at primary output node {}", 
+                            maxCircuitDelay_, nodeId);
+                }
+            }
+        }
+        
+        // --- DFF Inputs ---
+        else if (nodeType == NodeType::DFF_INPUT) {
+            // Similar to gates/POs, find max arrival time and propagate to D-input
+            const std::vector<int>& faninIds = node->getFaninIds();
+            
+            if (faninIds.empty()) {
+                STA_LOG(DebugLevel::WARN, "Node ID: {} (DFF_INPUT) has no fan-ins during arrival time calculation. Skipping.", nodeId);
+                continue;
+            }
+            
+            double maxFaninArrivalTime = 0.0;
+            double maxFaninSlew = 0.0;
+            
+            for (int faninId : faninIds) {
+                Node* faninNode = getNode(faninId);
+                if (!faninNode) {
+                    STA_LOG(DebugLevel::WARN, "Fan-in node ID {} not found during arrival time calculation for DFF input {}. Skipping.",
+                            faninId, nodeId);
+                    continue;
+                }
+                
+                double faninArrivalTime = faninNode->getArrivalTime();
+                double faninSlew = faninNode->getSlew();
+                
+                if (faninArrivalTime > maxFaninArrivalTime) {
+                    maxFaninArrivalTime = faninArrivalTime;
+                }
+                
+                if (faninSlew > maxFaninSlew) {
+                    maxFaninSlew = faninSlew;
+                }
+            }
+            
+            // For DFF input, arrival time is just the max of fan-in arrival times 
+            // (assuming no extra delay at D-input pin)
+            node->setArrivalTime(maxFaninArrivalTime);
+            node->setSlew(maxFaninSlew);
+            
+            STA_LOG(DebugLevel::DETAIL, "Node ID: {} (DFF_INPUT) -> Arrival time = {:.5f} ps, Slew = {:.5f} ps",
+                    nodeId, maxFaninArrivalTime, maxFaninSlew);
+            
+            // Update max circuit delay if DFF inputs are considered endpoints
+            if (maxFaninArrivalTime > maxCircuitDelay_) {
+                maxCircuitDelay_ = maxFaninArrivalTime;
+                STA_LOG(DebugLevel::INFO, "New max circuit delay: {:.5f} ps at DFF input node {}", 
+                        maxCircuitDelay_, nodeId);
+            }
+        }
+    }
+    
+    STA_LOG(DebugLevel::INFO, "Arrival time calculation (forward traversal) complete. Maximum circuit delay: {:.5f} ps", maxCircuitDelay_);
 }

@@ -58,7 +58,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Set the debug level as early as possible
-    Debug::setLevel(debugLevel);
+    DebugLogger::getInstance().setLevel(debugLevel);
 
     // Check positional arguments
     if (positionalArgs.size() != 2) {
@@ -73,9 +73,9 @@ int main(int argc, char* argv[]) {
 
     // Use STA_LOG for initial messages now that level is set
     STA_LOG(DebugLevel::INFO, "--- Static Timing Analysis Tool ---");
-    STA_LOG(DebugLevel::INFO, "Debug Level : " << Debug::levelToString(debugLevel)); // Log the chosen level
-    STA_LOG(DebugLevel::INFO, "Liberty File: " << libertyFilePath);
-    STA_LOG(DebugLevel::INFO, "Circuit File: " << circuitFilePath);
+    STA_LOG(DebugLevel::INFO, "Debug Level: {}", DebugLogger::getInstance().levelToString(debugLevel)); // Log the chosen level
+    STA_LOG(DebugLevel::INFO, "Liberty File: {}", libertyFilePath);
+    STA_LOG(DebugLevel::INFO, "Circuit File: {}", circuitFilePath);
     STA_LOG(DebugLevel::INFO, ""); // Blank line log
 
     // --- Parse Liberty File ---
@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
     bool libParseSuccess = gateLibrary.parseLibertyFile(libertyFilePath);
 
     if (!libParseSuccess) {
-        STA_LOG(DebugLevel::ERROR, "Failed to parse liberty file: " << libertyFilePath);
+        STA_LOG(DebugLevel::ERROR, "Failed to parse liberty file: {}", libertyFilePath);
         return 1; // Exit if parsing fails
     }
     STA_LOG(DebugLevel::INFO, "Liberty file parsed successfully.");
@@ -107,7 +107,7 @@ int main(int argc, char* argv[]) {
     bool netlistParseSuccess = circuit.parseNetlist(circuitFilePath);
 
     if (!netlistParseSuccess) {
-        STA_LOG(DebugLevel::ERROR, "Failed to parse circuit netlist: " << circuitFilePath);
+        STA_LOG(DebugLevel::ERROR, "Failed to parse circuit netlist: {}", circuitFilePath);
         return 1; // Exit if parsing fails
     }
      STA_LOG(DebugLevel::INFO, "Circuit netlist parsed successfully.");
@@ -115,14 +115,15 @@ int main(int argc, char* argv[]) {
      // std::cout << "Topological sort size: " << circuit.getTopologicalOrder().size() << std::endl;
      STA_LOG(DebugLevel::INFO, "");
 
-    // --- Perform Static Timing Analysis (Placeholders) ---
-    STA_LOG(DebugLevel::INFO, "Performing Static Timing Analysis...");
+    // --- Perform STA Calculations ---
+    STA_LOG(DebugLevel::INFO, "\n--- Starting STA Calculations ---");
+
+    // 1. Calculate Load Capacitances
     circuit.calculateLoadCapacitances();
-    circuit.computeArrivalTimes();
-    // double calculatedDelay = circuit.getCircuitDelay(); // Get delay after forward pass
-    // circuit.computeRequiredTimes(calculatedDelay);
-    // circuit.computeSlacks();
-    // std::vector<int> criticalPath = circuit.findCriticalPath();
+
+    // 2. Compute Arrival Times (Forward Pass)
+    circuit.computeArrivalTimes(); // TODO: Call this next
+
     STA_LOG(DebugLevel::INFO, "STA complete (using placeholder functions).");
     STA_LOG(DebugLevel::INFO, "");
 
@@ -131,6 +132,29 @@ int main(int argc, char* argv[]) {
     // TODO: Implement output file writing as per spec
 
     STA_LOG(DebugLevel::INFO, "\n--- STA Tool Execution Complete ---");
+    STA_LOG(DebugLevel::INFO, "STA execution finished.");
+
+    // Close the log file if it was opened
+    DebugLogger::getInstance().closeLogFile();
 
     return 0;
+}
+
+// Helper function to print usage
+void printUsage(const char* progName) {
+    std::cerr << "Usage: " << progName << " <circuit_file.isc> <library_file.lib> [-d <LEVEL>]" << std::endl;
+    std::cerr << "  LEVEL can be ERROR, WARN, INFO, DETAIL, TRACE" << std::endl;
+}
+
+// Helper function to parse debug level argument
+bool parseDebugLevel(const std::string& levelStr, DebugLevel& level) {
+    std::string upperLevel = levelStr;
+    std::transform(upperLevel.begin(), upperLevel.end(), upperLevel.begin(), ::toupper);
+    if (upperLevel == "ERROR") level = DebugLevel::ERROR;
+    else if (upperLevel == "WARN") level = DebugLevel::WARN;
+    else if (upperLevel == "INFO") level = DebugLevel::INFO;
+    else if (upperLevel == "DETAIL") level = DebugLevel::DETAIL;
+    else if (upperLevel == "TRACE") level = DebugLevel::TRACE;
+    else return false; // Invalid level
+    return true;
 }
