@@ -1,6 +1,6 @@
 # F-M Circuit Partitioning
 
-Due: 9/21/2022 23:59 PM
+Implementing Professor T.W Huang's assignment from his course in Utah.
 
 ## Problem Description
 
@@ -29,17 +29,6 @@ In the program output, you are asked to give the cut size, the sizes of $G_1$ an
 | Cutsize = $s$<br> G1 size <br> [cells]+ <br> G2 size <br> [cells]+ | Cutsize = 5 <br> G1 3 <br> c1 c2 c3 ; <br> G2 3 <br> c4 c5 c6;|
 
 Note that the example solution may not be the optimal one.
-
-## Language
-
-You can implement this assignment using any language you like. However, we recommend `C` or `C++` for performance reason.
-
-## Platform
-
-You need to evaluate your program on the Linux server at `twhuang-server-01.ece.utah.edu`.
-
-Please email Dr. Huang (tsung-wei.huang at utah.edu) for creating an account to log in.
-
 
 ## Program Command 
 
@@ -77,31 +66,3 @@ Congratulations! Legal Solution!!
 Note the above output is just an example.
 
 
-## Submission
-
-You need to submit a report by responding directly to [Programming Assignment #1 Submission Page](https://github.com/tsung-wei-huang/ece5960-physical-design/issues/1). The report should contain the following section:
-
-+ A section describing means to compile and run your code 
-+ A section listing partition results in terms of cut size and runtime for each *PASSED* benchmark 
-+ A section outlining the challenges you encountered and solved during the implementation
-
-You *DO NOT* need to submit any source code but place it under the folder `/home/your_account/PA1` in the server `twhuang-server-01.ece.utah.edu`, where `your_account` is your log-in account. The instructor will go to your folder to grade your code based on the instruction in your report. If you wish to place your code somewhere else, please document it in your report.
-
-To help you stay on schedule, we will have two checkpoints. At each checkpoint, you will need to update your current results in a Markdown Table by responding to [Programming Assignment #1 Checkpoint Report](https://github.com/tsung-wei-huang/ece5960-physical-design/issues/2).
-
-
-## Grading Policy
-
-This programming assignment will be graded based on the following metrics:
-
-+ Correctness reported by the checker program
-+ Solution quality of your partitioned results
-+ Runtime performance of your program
-
-## Academic Integrity
-
-Please refer to the [University Academic Policies](https://regulations.utah.edu/academics/) for details about academic integrity.
-
-## Questions
-
-If you have any questions, please create an [issue page](https://github.com/tsung-wei-huang/ece5960-physical-design/issues). We highly encourage you discuss questions with others in the issue page.
