@@ -1,0 +1,17 @@
+Circuit delay: 62.50 ps
+
+Gate slacks:
+INP-n1: 31.59 ps
+INP-n2: 25.57 ps
+INP-n3: 6.25 ps
+INP-n4: 6.25 ps
+INP-n5: 31.06 ps
+NAND-n6: 6.25 ps
+NAND-n7: 6.25 ps
+NAND-n8: 31.59 ps
+NAND-n9: 6.25 ps
+NAND-n10: 6.25 ps
+NAND-n11: 11.88 ps
+
+Critical path:
+INP-n3, NAND-n9, NAND-n10, NAND-n6
