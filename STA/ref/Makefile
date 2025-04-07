@@ -1,70 +1,44 @@
-# Compiler and flags
-CC = g++
-CFLAGS = -Wall -std=c++17 -O2
-DEBUG_FLAGS = -DDEBUG -g
-INCLUDE = -I../include
+CC=g++
+SRC_DIR=src
+BUID_DIR=build
+TARGET=sta
 
-# Input files
-SRC = PA1Solution.cpp
-DEBUG_SRC = PA1Solution_debug.cpp
-DEBUG_SUPPORT_SRC = ../src/debug.cpp
+# All cpp files in SRC_DIR 
+SOURCES=$(shell find $(SRC_DIR) -type f -name *.cpp)
+# All the cpp files in SRC_DIR, but with .cpp replaced by .o
+# Source: https://www.gnu.org/software/make/manual/html_node/Text-Functions.html
+OBJECTS=$(patsubst $(SRC_DIR)/%,$(BUID_DIR)/%,$(SOURCES:.cpp=.o))
+# Enable all warning, use C++11, Optimization level 3
+#CFLAGS=-Wall -std=c++11 -O3
+CFLAGS=-Wall -std=c++17 -g
+# Use the header files inside the "include" folder
+INC=-I include
 
-# Default library and circuit files
-LIB_FILE = NLDM_lib_max2Inp
-CKT_FILE = cleaned_c17.isc
+$(TARGET): $(OBJECTS)
+	@echo "------------------------"
+	@echo "Linking"
+	@echo "------------------------"
+	
+	$(CC) $^ -o $(TARGET)
 
-# Executable names
-TARGET = sta
-DEBUG_TARGET = sta_debug
+	@echo "Done."
+	@echo "Executable = $(TARGET)"
 
-# Default target
-all: $(TARGET) $(DEBUG_TARGET)
+$(BUID_DIR)/%.o: $(SRC_DIR)/%.cpp
+	@echo "------------------------"
+	@echo "Building"
+	@echo "------------------------"
 
-# Build reference (non-debug) version
-reference: $(TARGET)
+	@mkdir -p $(BUID_DIR)
+	
+	$(CC) $(CFLAGS) $(INC) -c -o $@ $<
 
-# Build debug version
-debug: $(DEBUG_TARGET)
-
-# Normal compilation rule
-$(TARGET): $(SRC)
-	$(CC) $(CFLAGS) -o $@ $^
-
-# Debug compilation rule
-$(DEBUG_TARGET): $(DEBUG_SRC) $(DEBUG_SUPPORT_SRC)
-	$(CC) $(CFLAGS) $(DEBUG_FLAGS) $(INCLUDE) -o $@ $^
-
-# Run reference version
-run: $(TARGET)
-	./$(TARGET) $(LIB_FILE) $(CKT_FILE)
-
-# Run debug version with different log levels
-run_trace: $(DEBUG_TARGET)
-	STA_DEBUG_LEVEL=TRACE ./$(DEBUG_TARGET) $(LIB_FILE) $(CKT_FILE)
-
-run_detail: $(DEBUG_TARGET)
-	STA_DEBUG_LEVEL=DETAIL ./$(DEBUG_TARGET) $(LIB_FILE) $(CKT_FILE)
-
-run_info: $(DEBUG_TARGET)
-	STA_DEBUG_LEVEL=INFO ./$(DEBUG_TARGET) $(LIB_FILE) $(CKT_FILE)
-
-# Removes executable and any temporary files
 clean:
-	rm -f $(TARGET) $(DEBUG_TARGET) *.o *~ *.log debug_stub.hpp *.txt
+	@echo "Cleaning"
+	$(RM) -rf $(BUID_DIR) $(TARGET_DIR)
 
-# Compare outputs between original and debug versions
-compare: $(TARGET) $(DEBUG_TARGET)
-	@echo "=== Running original version ==="
-	./$(TARGET) $(LIB_FILE) $(CKT_FILE)
-	@mv ckt_traversal.txt reference_output.txt
-	@echo "=== Running debug version ==="
-	STA_DEBUG_LEVEL=INFO ./$(DEBUG_TARGET) $(LIB_FILE) $(CKT_FILE)
-	@mv ckt_traversal.txt debug_output.txt
-	@echo "=== Comparing outputs ==="
-	@diff -q reference_output.txt debug_output.txt > /dev/null && \
-	echo "✅ Outputs match!" || \
-	echo "❌ Outputs differ! See differences below:" && \
-	diff reference_output.txt debug_output.txt
+test: $(TARGET)
+	@echo "Testing"
+	./$(TARGET) test/NLDM_lib_max2Inp test/cleaned_iscas89_99_circuits/c17.isc 10 11
 
-# Phony targets declaration
-.PHONY: all reference debug run run_trace run_detail run_info clean compare
+.PHONY: clean
