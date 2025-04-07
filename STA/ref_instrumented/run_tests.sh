@@ -1,4 +1,6 @@
 mkdir -p results
+# Create directory for trace logs
+mkdir -p trace_logs
 
 PRG_NAME=./sta
 TEST_LIB_PATH="./test/NLDM_lib_max2Inp"
@@ -14,10 +16,11 @@ run_test() {
     echo "Testing ${circuit_name}"
     echo ""
     
-    # Run the STA program and save the output
-    time $PRG_NAME $TEST_LIB_PATH "$circuit_file" | tee "$output_file"
+    # Run the STA program, save trace log, and save standard output
+    # Use tee to capture stdout to results file, while stderr goes to terminal
+    time $PRG_NAME $TEST_LIB_PATH "$circuit_file" -log "trace_logs/${circuit_name}_trace.log" -loglevel trace 2>&1 | tee "$output_file"
     
-    # Append contents of ckt_traversal.txt to the output file
+    # Append contents of ckt_traversal.txt (if exists) to the results file
     if [[ -f ./ckt_traversal.txt ]]; then
         cat ./ckt_traversal.txt >> "$output_file"
     fi

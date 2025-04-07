@@ -19,7 +19,7 @@ $(TARGET): $(OBJECTS)
 	@echo "Linking"
 	@echo "------------------------"
 	
-	$(CC) $^ -o $(TARGET)
+	$(CC) $^ -o $(TARGET) -pthread
 
 	@echo "Done."
 	@echo "Executable = $(TARGET)"
@@ -34,11 +34,13 @@ $(BUID_DIR)/%.o: $(SRC_DIR)/%.cpp
 	$(CC) $(CFLAGS) $(INC) -c -o $@ $<
 
 clean:
+	@echo "------------------------"
 	@echo "Cleaning"
-	$(RM) -rf $(BUID_DIR) $(TARGET_DIR)
+	@echo "------------------------"
+	rm -rf build $(TARGET) results trace_logs *.log ckt_traversal.txt
 
 test: $(TARGET)
 	@echo "Testing"
 	./$(TARGET) test/NLDM_lib_max2Inp test/cleaned_iscas89_99_circuits/c17.isc 10 11
 
-.PHONY: clean
+.PHONY: all clean
