@@ -320,7 +320,7 @@ void runForwardTraversal(Circuit &circuit) {
             for (unsigned int outputNodeNum = 0; outputNodeNum < operatingNode->fanout_list.size(); outputNodeNum++) {
                 unsigned int tempNodeNum = operatingNode->fanout_list[outputNodeNum];
                 if (circuit.nodes_[tempNodeNum] != nullptr && circuit.nodes_[tempNodeNum]->gate_info_ != nullptr) {
-                    operatingNode->outputLoad += circuit.nodes_[tempNodeNum]->gate_info_->capacitance;
+                operatingNode->outputLoad += circuit.nodes_[tempNodeNum]->gate_info_->capacitance;
                     INST_TRACE("ForwardTraversal", "Adding capacitance of fanout", circuit.nodes_[tempNodeNum]->gate_type_, "to node", operatingNode->gate_type_);
                 } else {
                     INST_WARNING("ForwardTraversal", "Skipping null fanout node or gate_info for node", operatingNode->gate_type_);
@@ -341,11 +341,11 @@ void runForwardTraversal(Circuit &circuit) {
                 continue;
             }
 
-            circuit.nodes_[tempNodeNum]->inDegree-= 1;
+                circuit.nodes_[tempNodeNum]->inDegree-= 1;
             INST_TRACE("ForwardTraversal", "Decremented inDegree for fanout", circuit.nodes_[tempNodeNum]->gate_type_, "to", circuit.nodes_[tempNodeNum]->inDegree);
 
-            if (circuit.nodes_[tempNodeNum]->inDegree == 0) {
-                nodeQueue.push(circuit.nodes_[tempNodeNum]);
+                if (circuit.nodes_[tempNodeNum]->inDegree == 0) {
+                    nodeQueue.push(circuit.nodes_[tempNodeNum]);
                 INST_TRACE("ForwardTraversal", "Added node", circuit.nodes_[tempNodeNum]->gate_type_, "to queue (inDegree is 0).");
             }
         }
@@ -522,7 +522,7 @@ void runBackwardTraversal (Circuit &circuit) {
                     if (i < fanoutNode->gateDelays.size()) {
                         delayOfFanoutGateForThisInput = fanoutNode->gateDelays[i];
                         found_delay = true;
-                        break;
+                    break;
                     } else {
                         INST_WARNING("BackwardTraversal", "Index mismatch finding gate delay for fanin", operatingNode->gate_type_, "of fanout", fanoutNode->gate_type_);
                     }
@@ -693,10 +693,10 @@ vector <CircuitNode*> findCriticalPath (Circuit &circuit) {
 void outputCircuitTraversal (Circuit &circuit, vector <CircuitNode*> &criticalPath, string outputFile, bool printToTerminal, bool printToFile) {
     INST_TRACE("Output", "Starting output generation.");
     ofstream fileOut;
-    if (printToFile) {
+    if (printToFile) { 
         INST_TRACE("Output", "Attempting to open output file:", outputFile);
         fileOut.open(outputFile);
-
+    
         if (!fileOut.is_open()) {
             cerr << "ERROR: Unable to open file: " << outputFile << endl;
             INST_ERROR("Output", "Unable to open output file:", outputFile);
@@ -737,20 +737,20 @@ void outputCircuitTraversal (Circuit &circuit, vector <CircuitNode*> &criticalPa
         // Change loop variable to size_t here too for comparison
         if (critPathIndex != criticalPath.size() - 1) {
             output << ", ";
-        }
+        } 
         INST_TRACE("Output", "Formatted critical path node:", nodeLabel, "-n", criticalPath[critPathIndex]->node_id_);
     }
     output << endl;
 
     if (printToTerminal) {
-     cout << output.str();
+     cout << output.str();       
       INST_TRACE("Output", "Printed output to terminal.");
     }
 
     if (printToFile) {
         fileOut << output.str();
         INST_TRACE("Output", "Wrote output to file:", outputFile);
-        fileOut.close();
+        fileOut.close();        
         INST_TRACE("Output", "Closed output file.");
     }
     INST_TRACE("Output", "Output generation finished.");
@@ -844,7 +844,7 @@ double calculateOutputSlew(Circuit &circuit, string gateType, double inputSlew, 
         } else {
             INST_ERROR("CalcOutputSlew", "Could not find slew index for", inputSlew, "in gate", gateType);
             return -1.0;
-        }
+        }       
     }
 
     for (int i = 0; i < GATE_LUT_DIM-1; i++) {
@@ -901,9 +901,9 @@ double calculateOutputSlew(Circuit &circuit, string gateType, double inputSlew, 
         }
         INST_WARNING("CalcOutputSlew", "Interpolation denominator near zero for gate", gateType, ". Performing linear interpolation or returning corner value.");
     } else {
-        outputSlew = ( V11 * (C2 - loadCapacitance) * (T2 - inputSlew)
-                     + V12 * (loadCapacitance - C1) * (T2 - inputSlew)
-                     + V21 * (C2 - loadCapacitance) * (inputSlew - T1)
+    outputSlew = ( V11 * (C2 - loadCapacitance) * (T2 - inputSlew) 
+    + V12 * (loadCapacitance - C1) * (T2 - inputSlew)
+    + V21 * (C2 - loadCapacitance) * (inputSlew - T1)
                      + V22 * (loadCapacitance - C1) * (inputSlew - T1) ) / denom;
     }
 
@@ -965,7 +965,7 @@ double calculateDelay(Circuit &circuit, string gateType, double inputSlew, doubl
         } else {
             INST_ERROR("CalcDelay", "Could not find slew index for", inputSlew, "in gate", gateType);
             return -1.0;
-        }
+        }       
     }
 
     for (int i = 0; i < GATE_LUT_DIM-1; i++) {
@@ -1022,9 +1022,9 @@ double calculateDelay(Circuit &circuit, string gateType, double inputSlew, doubl
         }
         INST_WARNING("CalcDelay", "Interpolation denominator near zero for gate", gateType, ". Performing linear interpolation or returning corner value.");
     } else {
-        outputDelay = ( V11 * (C2 - loadCapacitance) * (T2 - inputSlew)
-                     + V12 * (loadCapacitance - C1) * (T2 - inputSlew)
-                     + V21 * (C2 - loadCapacitance) * (inputSlew - T1)
+    outputDelay = ( V11 * (C2 - loadCapacitance) * (T2 - inputSlew) 
+    + V12 * (loadCapacitance - C1) * (T2 - inputSlew)
+    + V21 * (C2 - loadCapacitance) * (inputSlew - T1)
                      + V22 * (loadCapacitance - C1) * (inputSlew - T1) ) / denom;
     }
 

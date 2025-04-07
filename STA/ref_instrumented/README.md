@@ -184,4 +184,23 @@ OUTPUT ( 7 )
 7 = NAND ( 10, 11 )  # Node 7 (Output) is driven by Node 10 and Node 11
 ```
 
-This format defines primary inputs, primary outputs, and internal gates with their type and driving nodes (fanins). 
+This format defines primary inputs, primary outputs, and internal gates with their type and driving nodes (fanins).
+
+## Performance
+
+The following table shows indicative performance numbers for the **original, uninstrumented `ref` implementation** when run on the provided benchmarks. Times were measured using the `time` command on the `run_tests.sh` script output.
+
+| Benchmark | Gate Count | Execution Time (real) |
+| :-------- | ---------: | --------------------: |
+| c17       |         22 |              ~0.003s |
+| c1908     |        924 |              ~0.006s |
+| c2670     |       1437 |              ~0.011s |
+| c3540     |       1730 |              ~0.015s |
+| c5315     |       2496 |              ~0.025s |
+| c7552     |       3730 |              ~0.045s |
+| b15       |      13039 |              ~0.325s |
+| b18       |     108470 |              ~2.412s |
+| b19       |     219405 |              ~4.900s |
+| b22       |      29940 |              ~0.855s |
+
+*(Note: Execution times can vary depending on the system hardware and load.)* 
