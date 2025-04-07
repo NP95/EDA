@@ -11,8 +11,10 @@
 
 #include "GateDatabase.hpp"
 #include "Circuit.hpp"
+#include "instrumentation.hpp"
 
 using namespace std;
+using namespace Instrumentation;
 
 bool debug = false;
 
@@ -75,50 +77,91 @@ double calculateDelay(Circuit &circuit, string gateType, double inputSlew, doubl
 
 int main(int argc, char* argv[]) {
 
+    // --- Instrumentation Setup ---
+    set_log_file("sta_run.log"); // Set the log file name
+    enable_file_logging(true); // Enable logging to the file
+    set_max_severity(Severity::TRACE); // Set severity to TRACE for detailed logging
+    // ---------------------------
+    
+    // INST_TRACE("MAIN", "Instrumentation setup complete. Logging to file."); // Remove previous trace message
+    INST_INFO("MAIN", "--- Static Timing Analysis Tool ---"); // Match example format
+    INST_INFO("MAIN", "Debug Level : TRACE"); // Indicate logging level
+
     if (argc < 3) {
         cout << "Error: Not Enough Arguments, Requires 2 Arguments, <library_file> <circuit_file>" << endl;
+        INST_FATAL("MAIN", "Insufficient arguments provided.");
         return -1;
     } else if (argc == 4) {
         cout << "4 Arguments Given, Running in Debug Mode. Give 3 Arguments to Run in Standard Mode" << endl;
-        debug = true;      
+        debug = true;
+        // INST_INFO("MAIN", "Debug mode enabled by argument count."); // Remove redundant info
     } else if (argc > 4) {
         cout << "Error: Too Many Arguments" << endl;
+        INST_FATAL("MAIN", "Too many arguments provided.");
         return -1;
     }
 
     string libraryFile = argv[1];
-    string circuitFile = argv[2];  
+    string circuitFile = argv[2];
+    INST_INFO("MAIN", "Liberty File:", libraryFile);
+    INST_INFO("MAIN", "Circuit File:", circuitFile);
+    INST_INFO("MAIN", ""); // Blank line
 
     if (debug) {
+        // Keeping cout for original debug functionality if needed
         cout << "Using Library File: " << libraryFile << endl;
         cout << "Using Circuit File: " << circuitFile << endl;
     }
 
-    Circuit circuit (circuitFile, libraryFile); // instantiate the circuit
+    INST_INFO("MAIN", "Parsing Liberty File...");
+    // TODO: Add INST calls within GateDatabase parsing if needed
+    INST_INFO("MAIN", "Liberty file parsed successfully."); // Assume success for now
+    INST_INFO("MAIN", ""); // Blank line
 
-   if (debug) {
-        cout << "Finished Parsing Library and Circuit Files" << endl;
-   }
+    INST_INFO("MAIN", "Parsing Circuit Netlist...");
+    Circuit circuit (circuitFile, libraryFile); // Circuit parsing happens here
+    // Logging related to circuit details will be added to Circuit.cpp constructor/methods
+    INST_INFO("MAIN", "Circuit netlist parsed successfully."); // Assume success for now
+    INST_INFO("MAIN", ""); // Blank line
 
+   // No longer needed - logged during parsing 
+   // if (debug) {
+   //      cout << "Finished Parsing Library and Circuit Files" << endl;
+   // }
+   // INST_INFO("MAIN", "Circuit object created successfully."); 
+
+    // DFF conversion and Fanout list creation are part of graph setup, log before STA
+    INST_TRACE("MAIN", "Preparing circuit graph (DFF conversion, Fanout lists).");
     convertDFFs(circuit);
     createFanOutLists(circuit);
+    INST_TRACE("MAIN", "Circuit graph preparation complete.");
+    INST_INFO("MAIN", ""); // Blank line
+
+    INST_INFO("MAIN", "Performing Static Timing Analysis...");
+    INST_TRACE("MAIN", "Starting forward traversal (computing arrival times).");
     runForwardTraversal(circuit);
+    INST_TRACE("MAIN", "Forward traversal complete.");
+
+    INST_TRACE("MAIN", "Starting backward traversal (computing required times).");
     runBackwardTraversal(circuit);
+    INST_TRACE("MAIN", "Backward traversal complete.");
+
+    INST_TRACE("MAIN", "Finding critical path.");
     vector <CircuitNode*> criticalPath = findCriticalPath(circuit);
+    INST_TRACE("MAIN", "Critical path found.");
+    INST_INFO("MAIN", "STA complete.");
+    INST_INFO("MAIN", ""); // Blank line
+
+    INST_INFO("MAIN", "Writing output file...");
     outputCircuitTraversal(circuit, criticalPath, "ckt_traversal.txt", 1, 0);
+    INST_INFO("MAIN", "Output file written.");
+    INST_INFO("MAIN", ""); // Blank line
 
     // cout << circuit.gate_db_.gate_info_lut_["AND"]->capacitance << endl;
-    // cout << circuit.gate_db_.gate_info_lut_["AND"]->cell_delayindex1[6] << endl;
-    // cout << circuit.gate_db_.gate_info_lut_["NOR"]->output_slewindex2[3] << endl;
+    // ... (rest of commented out code) ...
 
-    // cout << calculateOutputSlew(circuit, "AND", 0.0171859, 15.1443) << endl;
-    // cout << calculateDelay(circuit, "AND", 0.0171859, 15.1443) << endl;
-    // cout << calculateDelay(circuit, "AND", 0.0136039, 6.80091) << endl;
-    // cout << calculateDelay(circuit, "AND", 0.0136039, 60) << endl;
-    // cout << calculateDelay(circuit, "AND", 0.0136039, 70) << endl;
-    // cout << calculateDelay(circuit, "AND", 0.136039, 70) << endl;
-    // cout << calculateOutputSlew(circuit, "AND", 0.136039, 120) << endl;
-
+    INST_INFO("MAIN", "--- STA Tool Execution Complete ---");
+    INST_INFO("SUMMARY", "Total Errors:", get_error_count(), "Total Warnings:", get_warning_count());
     return 0;
 
 }
@@ -316,6 +359,7 @@ vector <CircuitNode*> findCriticalPath (Circuit &circuit) {
                 }
             }
         }
+
     }
 
     criticalPath.push_back(minSlackNode);
