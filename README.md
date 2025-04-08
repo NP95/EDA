@@ -1,6 +1,6 @@
 # EDA
 
-Implemenation of some EDA tools to workout my C++ skills
+Implementation of some EDA tools to workout my C++ skills
 
 1. STA Tool with Instrumentation - I had implemented the tool as part of my VLSI CAD assignment in Grad school, I wanted to implement a multi-threaded version however since my original implementation was using STL
 containers which are not thread safe, I would have to rearchitect from scratch for multi threading. Instead I implemented a lightweight instrumentation library to debug the STA tool for intermediate steps, taking inspiration from Singleton pattern and the Facade Pattern. Detailed README.md is available in ref/instrumented library.
