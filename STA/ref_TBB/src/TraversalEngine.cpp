@@ -44,6 +44,19 @@ void TraversalEngine::run_parallel_forward_traversal() {
         size_t num_nodes_in_level = current_level_nodes.size();
         std::cout << "[DEBUG][FWD] Processing Level " << level_idx << " with " << num_nodes_in_level << " nodes." << std::endl;
 
+         // --- Debug Print: List nodes in the current level --- 
+         std::cout << "[DEBUG][FWD] Nodes in Level " << level_idx << ": [ ";
+         bool first_node = true;
+         for (const auto* node_ptr : current_level_nodes) {
+             if (node_ptr) {
+                 if (!first_node) std::cout << ", ";
+                 std::cout << node_ptr->get_node_id();
+                 first_node = false;
+             }
+         }
+         std::cout << " ]" << std::endl;
+         // --- End Debug Print ---
+
         if (num_nodes_in_level == 0) continue; // Skip empty levels
 
         // Use atomic counter for nodes processed in parallel for debug

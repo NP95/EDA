@@ -46,12 +46,16 @@ void LevelManager::compute_forward_levels(Circuit& circuit) {
         if (node != nullptr) {
             valid_node_count++;
             current_in_degrees[id] = node->inDegree;
-            // Add actual primary inputs (inDegree == 0) OR DFF outputs to the initial queue
-            if (node->inDegree == 0) { 
+            // Add actual primary inputs (inDegree == 0) OR DFF outputs (marked as input_pad) to the initial queue
+            if (node->inDegree == 0 || node->is_input_pad()) {
                 std::cout << "[DEBUG][LEVEL] Adding initial node to queue: " << node->get_node_id() 
-                          << " (Type: " << (node->is_input_pad() ? "INPUT" : node->get_gate_type())
+                          << " (Type: " << (node->is_input_pad() ? "INPUT/DFF" : node->get_gate_type())
                           << ", InDegree=" << node->inDegree << ")" << std::endl;
                 zero_in_degree_queue.push(node);
+                 // Check if the nodes of interest are level 0
+                 if (node->get_node_id() == 699 || node->get_node_id() == 686) {
+                     std::cout << "[DEBUG][LEVEL] Node ID: " << node->get_node_id() << " assigned level 0 (Initial Queue)" << std::endl;
+                 }
             }
         } else {
             current_in_degrees[id] = -1; // Mark unused node IDs
@@ -73,8 +77,14 @@ void LevelManager::compute_forward_levels(Circuit& circuit) {
             zero_in_degree_queue.pop();
             std::cout << "[DEBUG][LEVEL]   Dequeued node: " << current_node->get_node_id() << std::endl;
 
+            // Assign node to the current level
             forward_levels_[current_level_index].push_back(current_node);
             processed_node_count++;
+
+            // Check if the dequeued node is one we are interested in
+            if (current_node->get_node_id() == 699 || current_node->get_node_id() == 686) {
+                std::cout << "[DEBUG][LEVEL] Node ID: " << current_node->get_node_id() << " assigned level " << current_level_index << std::endl;
+            }
 
             // Process fanouts
             for (const NodeID& fanout_id : current_node->fanout_list) {
@@ -82,7 +92,8 @@ void LevelManager::compute_forward_levels(Circuit& circuit) {
                  if (fanout_id >= 0 && fanout_id < num_nodes && circuit.nodes_[fanout_id] != nullptr) {
                     current_in_degrees[fanout_id]--;
                     std::cout << "[DEBUG][LEVEL]     Decremented fanout " << fanout_id << ", new in-degree: " << current_in_degrees[fanout_id] << std::endl;
-                    if (current_in_degrees[fanout_id] == 0) {
+                    // Only add to queue if in-degree is 0 AND it's not an input_pad (which should have been added initially)
+                    if (current_in_degrees[fanout_id] == 0 && !circuit.nodes_[fanout_id]->is_input_pad()) { 
                          std::cout << "[DEBUG][LEVEL]       Adding fanout " << fanout_id << " to queue." << std::endl;
                         zero_in_degree_queue.push(circuit.nodes_[fanout_id]);
                     }
@@ -103,10 +114,8 @@ void LevelManager::compute_forward_levels(Circuit& circuit) {
 
     // Optional: Check for cycles
     if (processed_node_count != valid_node_count) {
-        // Handle cycle detection error (e.g., throw exception, log warning)
-        // For now, we'll assume valid DAGs as per typical STA constraints
-         std::cerr << "Warning: Cycle detected or unprocessed nodes in forward leveling. Processed: "
-                   << processed_node_count << ", Expected: " << valid_node_count << std::endl;
+        std::cerr << "Warning: Cycle detected or unprocessed nodes in forward leveling. Processed: "
+                  << processed_node_count << ", Expected: " << valid_node_count << std::endl;
     }
 }
 
