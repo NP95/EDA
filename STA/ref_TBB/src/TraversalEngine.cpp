@@ -102,17 +102,17 @@ void TraversalEngine::run_parallel_forward_traversal() {
     
      max_delay = tbb::parallel_reduce(
         tbb::blocked_range<size_t>(0, output_nodes.size()),
-        0.0, 
+        0.0,
         [&](const tbb::blocked_range<size_t>& r, double current_max) -> double { // Explicit return type
             for (size_t i = r.begin(); i != r.end(); ++i) {
                  CircuitNode* po_node = output_nodes[i];
-                 if (po_node) { 
+                 if (po_node) {
                      // --- Start of Modification ---
                      // Simple check: Use the node's timeOut directly.
                      // The primary_outputs_ list now correctly contains original POs and relevant D-pin drivers.
                      double arrival_time_to_consider = po_node->timeOut;
                      // std::cout << "[DEBUG][REDUCE] Considering PO Node " << po_node->node_id_ << " timeOut=" << arrival_time_to_consider << std::endl;
-                     
+
                      // Add check for non-finite values
                      if (std::isfinite(arrival_time_to_consider)) {
                         current_max = std::max(current_max, arrival_time_to_consider);
