@@ -387,34 +387,34 @@ const std::vector<CircuitNode*>& Circuit::get_primary_outputs() const {
 // Add the convertDFFs method implementation
 void Circuit::convertDFFs() {
     size_t num_nodes = nodes_.size();
-    // std::cout << \"[DEBUG][INIT] Starting DFF conversion...\" << std::endl;
+    // std::cout << \"[DEBUG][INIT] Starting DFF conversion...\" << std::endl; // DEBUG REMOVED
     int dff_count = 0;
     // Create a temporary list to store D-pin drivers to avoid modifying the list while iterating
-    std::vector<NodeID> d_pin_drivers_to_mark_output; 
+    std::vector<NodeID> d_pin_drivers_to_mark_output;
 
     for (NodeID id = 0; id < num_nodes; ++id) {
         CircuitNode* node = nodes_[id];
         if (node != nullptr) {
             // Check for DFF gate types (add others like DFFX1 if they exist in your library/circuits)
-            if (node->get_gate_type() == "DFF" || node->get_gate_type() == "DFFX1") {
+            if (node->get_gate_type() == \"DFF\" || node->get_gate_type() == \"DFFX1\") {
                 dff_count++;
-                // std::cout << \"[DEBUG][INIT] Converting DFF Node: \" << id
-                          // << \" (Original InDegree: \" << node->inDegree << \")\" << std::endl;
+                // std::cout << \"[DEBUG][INIT] Converting DFF Node: \" << id // DEBUG REMOVED
+                          // << \" (Original InDegree: \" << node->inDegree << \")\" << std::endl; // DEBUG REMOVED
 
                 // --- Start of Modification ---
                 // Get the D-pin driver node ID (assuming single fanin for DFF)
                 NodeID d_pin_driver_id = -1;
                 if (!node->get_fanin_list().empty()) {
                     d_pin_driver_id = node->get_fanin_list().front();
-                    // std::cout << \"[DEBUG][INIT]   DFF \" << id << \" driver is Node: \" << d_pin_driver_id << std::endl;
+                    // std::cout << \"[DEBUG][INIT]   DFF \" << id << \" driver is Node: \" << d_pin_driver_id << std::endl; // DEBUG REMOVED
                     // Add to list to mark later
                     if (d_pin_driver_id >= 0 && d_pin_driver_id < num_nodes && nodes_[d_pin_driver_id] != nullptr) {
                          d_pin_drivers_to_mark_output.push_back(d_pin_driver_id);
                     } else {
-                         // std::cerr << \"[WARN][INIT] DFF \" << id << \" has invalid D-pin driver ID: \" << d_pin_driver_id << std::endl;
+                         // std::cerr << \"[WARN][INIT] DFF \" << id << \" has invalid D-pin driver ID: \" << d_pin_driver_id << std::endl; // DEBUG REMOVED
                     }
                 } else {
-                     // std::cerr << \"[WARN][INIT] DFF \" << id << \" has empty fanin list! Cannot mark driver.\" << std::endl;
+                     // std::cerr << \"[WARN][INIT] DFF \" << id << \" has empty fanin list! Cannot mark driver.\" << std::endl; // DEBUG REMOVED
                 }
 
                 // Clear fanins (breaks cycle for forward traversal)
@@ -427,18 +427,19 @@ void Circuit::convertDFFs() {
                 // --- End of Modification ---
 
                 // Set initial timing values like a primary input
-                node->set_time_out(0.0); // Initial arrival time
-                node->set_slew_out(0.002); // Default initial slew
+                // Note: These might be overwritten by set_initial_timing_conditions later if called
+                // node->set_time_out(0.0); // Initial arrival time - Covered by set_initial_timing_conditions
+                // node->set_slew_out(0.002); // Default initial slew - Covered by set_initial_timing_conditions
             }
         }
     }
 
     // --- New Step: Mark D-pin drivers as output pads ---
-    // std::cout << \"[DEBUG][INIT] Marking \" << d_pin_drivers_to_mark_output.size() << \" D-pin drivers as output pads.\" << std::endl;
+    // std::cout << \"[DEBUG][INIT] Marking \" << d_pin_drivers_to_mark_output.size() << \" D-pin drivers as output pads.\" << std::endl; // DEBUG REMOVED
     for (NodeID driver_id : d_pin_drivers_to_mark_output) {
          if (driver_id >= 0 && driver_id < num_nodes && nodes_[driver_id] != nullptr) {
               nodes_[driver_id]->set_output_pad(true);
-              // std::cout << \"[DEBUG][INIT]   Marked Node \" << driver_id << \" as output pad.\" << std::endl;
+              // std::cout << \"[DEBUG][INIT]   Marked Node \" << driver_id << \" as output pad.\" << std::endl; // DEBUG REMOVED
               // Check if this driver was ALSO an original PO and add it to primary_outputs_ if not already there
               // This handles cases where a DFF output IS a primary output.
               // Find if driver_id is already in primary_outputs_
@@ -450,16 +451,16 @@ void Circuit::convertDFFs() {
                     }
                 }
                 if (!already_po) {
-                    // std::cout << \"[DEBUG][INIT]   Adding D-pin driver \" << driver_id << \" to primary_outputs_ list (was not original PO).\" << std::endl;
+                    // std::cout << \"[DEBUG][INIT]   Adding D-pin driver \" << driver_id << \" to primary_outputs_ list (was not original PO).\" << std::endl; // DEBUG REMOVED
                     primary_outputs_.push_back(nodes_[driver_id]); // Add driver to PO list for delay calc etc.
                 }
          }
     }
     // --- End New Step ---
 
-     // std::cout << \"[DEBUG][INIT] Finished DFF conversion. Converted \" << dff_count << \" DFFs.\" << std::endl;
+     // std::cout << \"[DEBUG][INIT] Finished DFF conversion. Converted \" << dff_count << \" DFFs.\" << std::endl; // DEBUG REMOVED
 
-    // --- DEBUG PRINT: Check PO flags after DFF conversion ---
+    // --- DEBUG PRINT: Check PO flags after DFF conversion --- // DEBUG REMOVED
     /*
     std::cout << \"[DEBUG][INIT] --- Checking PO Node Flags Post-DFF Conversion ---\" << std::endl;
     for (NodeID id = 37; id <= 106; ++id) { // Check the specific PO node IDs
