@@ -103,37 +103,20 @@ void TraversalEngine::run_parallel_forward_traversal() {
             for (size_t i = r.begin(); i != r.end(); ++i) {
                  CircuitNode* po_node = output_nodes[i];
                  if (po_node) { 
-                     double arrival_time_to_consider = 0.0;
-                     // Check if the PO node is actually a DFF's Q output
-                     if (po_node->get_gate_type() == "DFF" || po_node->get_gate_type() == "DFFX1") {
-                         // If it's a DFF, we want the arrival time at its D-pin.
-                         // Get the node driving the D-pin (assuming single fanin for DFFs after conversion)
-                         const auto& fanin_list = po_node->get_fanin_list();
-                         if (!fanin_list.empty()) {
-                             NodeID d_pin_driver_id = fanin_list.front(); // Assuming D is the first/only fanin
-                             if (d_pin_driver_id >= 0 && d_pin_driver_id < nodes_.size() && nodes_[d_pin_driver_id] != nullptr) {
-                                 arrival_time_to_consider = nodes_[d_pin_driver_id]->timeOut;
-                                 std::cout << "[DEBUG][REDUCE] PO DFF " << po_node->node_id_ << " considering D-pin driver " << d_pin_driver_id << " timeOut=" << arrival_time_to_consider << std::endl;
-                             } else {
-                                 std::cerr << "[WARN][REDUCE] PO DFF " << po_node->node_id_ << " has invalid D-pin driver ID: " << d_pin_driver_id << std::endl;
-                             }
-                         } else {
-                             std::cerr << "[WARN][REDUCE] PO DFF " << po_node->node_id_ << " has empty fanin list! Cannot get D-pin time." << std::endl;
-                         }
-                     } else {
-                         // For non-DFF POs (if any), use their own calculated timeOut
-                         arrival_time_to_consider = po_node->timeOut;
-                         std::cout << "[DEBUG][REDUCE] PO non-DFF " << po_node->node_id_ << " considering own timeOut=" << arrival_time_to_consider << std::endl;
-                     }
+                     // --- Start of Modification ---
+                     // Simple check: Use the node's timeOut directly.
+                     // The primary_outputs_ list now correctly contains original POs and relevant D-pin drivers.
+                     double arrival_time_to_consider = po_node->timeOut;
+                     // std::cout << \"[DEBUG][REDUCE] Considering PO Node \" << po_node->node_id_ << \" timeOut=\" << arrival_time_to_consider << std::endl;
                      
                      // Add check for non-finite values
-                     // double node_time_out = output_nodes[i]->timeOut; // Use direct access
                      if (std::isfinite(arrival_time_to_consider)) {
                         current_max = std::max(current_max, arrival_time_to_consider);
                      } else {
-                        std::cerr << "[WARN][FWD] Non-finite arrival_time_to_consider found for output node calculation involving PO ID: " 
-                                  << po_node->node_id_ << std::endl;
+                        // std::cerr << \"[WARN][FWD] Non-finite arrival_time_to_consider found for output node: \" 
+                                  // << po_node->node_id_ << std::endl;
                      }
+                    // --- End of Modification ---
                  }
             }
             return current_max;
