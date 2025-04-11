@@ -87,7 +87,7 @@ Circuit::Circuit(const std::string& ckt_file, const std::string& lib_file):
             nodes_[node_id]->set_node_id(node_id);
             nodes_[node_id]->set_output_pad(true);
             primary_outputs_.push_back(nodes_[node_id]); // Add to primary outputs list
-            std::cout << "[DEBUG][PARSE] Marked Node ID " << node_id << " as primary output." << std::endl; // Add print
+            // std::cout << "[DEBUG][PARSE] Marked Node ID " << node_id << " as primary output." << std::endl; // DEBUG REMOVED
             continue;
         }
 
@@ -132,7 +132,7 @@ Circuit::Circuit(const std::string& ckt_file, const std::string& lib_file):
                     nodes_[fanin_id]->fanout_list.push_back(id);
                 } else {
                     // Handle potential error: fanin points to invalid/null node
-                     std::cerr << "Warning: Node " << id << " has invalid fanin ID: " << fanin_id << std::endl;
+                     // std::cerr << "Warning: Node " << id << " has invalid fanin ID: " << fanin_id << std::endl; // DEBUG REMOVED
                 }
             }
         }
@@ -154,16 +154,17 @@ Circuit::Circuit(const std::string& ckt_file, const std::string& lib_file):
     compute_output_loads();
 
     // --- Explicitly Set Initial Timing for PIs and Pseudo-PIs ---
-    std::cout << "[DEBUG][INIT] Setting initial timing conditions for all input pads..." << std::endl;
+    // std::cout << "[DEBUG][INIT] Setting initial timing conditions for all input pads..." << std::endl; // DEBUG REMOVED
     for (CircuitNode* node : this->nodes_) { // Iterate through all nodes
         if (node != nullptr && node->is_input_pad()) { // Check if it's an input pad (original or converted DFF)
-             // std::cout << "[DEBUG][INIT]   Setting initial timing for node: " << node->get_node_id() << std::endl; // Optional debug
+             // std::cout << "[DEBUG][INIT]   Setting initial timing for node: " << node->get_node_id() << std::endl; // Optional debug // DEBUG REMOVED
              node->set_initial_timing_conditions();
         }
     }
-    std::cout << "[DEBUG][INIT] Finished setting initial timing conditions." << std::endl;
+    // std::cout << "[DEBUG][INIT] Finished setting initial timing conditions." << std::endl; // DEBUG REMOVED
 
     // Print summary info after initialization
+    /* // DEBUG REMOVED
     std::cout << "[INFO] Circuit Initialization Summary:" << std::endl;
     std::cout << "[INFO]   Total Nodes Allocated: " << nodes_.size() << std::endl;
     // Count valid nodes
@@ -173,6 +174,7 @@ Circuit::Circuit(const std::string& ckt_file, const std::string& lib_file):
     std::cout << "[INFO]   Primary Inputs: " << primary_inputs_.size() << std::endl;
     std::cout << "[INFO]   Primary Outputs: " << primary_outputs_.size() << std::endl;
     std::cout << "[INFO]   Max Forward Level: " << level_manager_.get_max_level() << std::endl;
+    */ // DEBUG REMOVED
 
     // Optional: Print summary of levels for debugging
     // std::cout << "Level computation complete. Max level: " << level_manager_.get_max_level() << std::endl;
@@ -293,12 +295,12 @@ void Circuit::test() {
 }
 
 void Circuit::compute_output_loads() {
-    std::cout << "[DEBUG] Starting compute_output_loads..." << std::endl;
+    // std::cout << "[DEBUG] Starting compute_output_loads..." << std::endl; // DEBUG REMOVED
     size_t num_nodes = nodes_.size();
     const GateInfo* inv_gate_info = gate_db_.get_gate_info("INV");
     double inv_capacitance = inv_gate_info ? inv_gate_info->capacitance : 0.0; 
     if (!inv_gate_info) {
-         std::cerr << "Warning: INV gate type not found in library for output load calculation." << std::endl;
+         // std::cerr << "Warning: INV gate type not found in library for output load calculation." << std::endl; // DEBUG REMOVED
     }
 
     int nodes_processed = 0;
@@ -327,13 +329,13 @@ void Circuit::compute_output_loads() {
                 } else {
                      if (!fanout_node->is_output_pad()) {
                          // Only warn if GateInfo is missing for non-output pads
-                          std::cerr << "Warning: GateInfo missing for fanout node " << fanout_id
-                                    << " of node " << id << std::endl;
+                          // std::cerr << "Warning: GateInfo missing for fanout node " << fanout_id
+                                    // << " of node " << id << std::endl; // DEBUG REMOVED
                      }
                      // If fanout is an output pad, it doesn't contribute load based on its own GateInfo
                 }
             } else {
-                 std::cerr << "Warning: Node " << id << " has invalid fanout ID in fanout list: " << fanout_id << std::endl;
+                 // std::cerr << "Warning: Node " << id << " has invalid fanout ID in fanout list: " << fanout_id << std::endl; // DEBUG REMOVED
             }
         }
         if (current_node->outputLoad > max_load) max_load = current_node->outputLoad;
@@ -342,12 +344,12 @@ void Circuit::compute_output_loads() {
 
     // --- Assign default load to Primary Outputs --- 
     // Iterate through the list populated during initial parsing, before flags might have been changed by convertDFFs.
-    std::cout << "[DEBUG][LOAD] Assigning default loads to primary output nodes..." << std::endl;
+    // std::cout << "[DEBUG][LOAD] Assigning default loads to primary output nodes..." << std::endl; // DEBUG REMOVED
     int po_loads_assigned = 0;
     for (CircuitNode* po_node : primary_outputs_) {
         if (po_node != nullptr) {
             po_node->outputLoad = inv_capacitance * 4.0;
-            std::cout << "[DEBUG][LOAD] Assigned default load (" << po_node->outputLoad << ") to PO Node ID: " << po_node->get_node_id() << std::endl;
+            // std::cout << "[DEBUG][LOAD] Assigned default load (" << po_node->outputLoad << ") to PO Node ID: " << po_node->get_node_id() << std::endl; // DEBUG REMOVED
             po_loads_assigned++;
             // Also add this load to the total/max stats if desired for consistency
             if (po_node->outputLoad > max_load) max_load = po_node->outputLoad;
@@ -355,11 +357,11 @@ void Circuit::compute_output_loads() {
             nodes_processed++; // Count POs in the processed count as well
         }
     }
-    std::cout << "[DEBUG][LOAD] Assigned default load to " << po_loads_assigned << " primary output nodes." << std::endl;
+    // std::cout << "[DEBUG][LOAD] Assigned default load to " << po_loads_assigned << " primary output nodes." << std::endl; // DEBUG REMOVED
 
-    std::cout << "[DEBUG] Finished compute_output_loads. Processed: " << nodes_processed 
-              << ", Max Load: " << max_load << ", Avg Load: " << (nodes_processed > 0 ? total_load / nodes_processed : 0.0)
-              << std::endl;
+    // std::cout << "[DEBUG] Finished compute_output_loads. Processed: " << nodes_processed // DEBUG REMOVED
+    //           << ", Max Load: " << max_load << ", Avg Load: " << (nodes_processed > 0 ? total_load / nodes_processed : 0.0)
+    //           << std::endl; // DEBUG REMOVED
 }
 
 // Implementation for the accessor method
@@ -387,7 +389,7 @@ const std::vector<CircuitNode*>& Circuit::get_primary_outputs() const {
 // Add the convertDFFs method implementation
 void Circuit::convertDFFs() {
     size_t num_nodes = nodes_.size();
-    // std::cout << \"[DEBUG][INIT] Starting DFF conversion...\" << std::endl; // DEBUG REMOVED
+    // std::cout << "[DEBUG][INIT] Starting DFF conversion..." << std::endl; // DEBUG REMOVED
     int dff_count = 0;
     // Create a temporary list to store D-pin drivers to avoid modifying the list while iterating
     std::vector<NodeID> d_pin_drivers_to_mark_output;
@@ -396,25 +398,25 @@ void Circuit::convertDFFs() {
         CircuitNode* node = nodes_[id];
         if (node != nullptr) {
             // Check for DFF gate types (add others like DFFX1 if they exist in your library/circuits)
-            if (node->get_gate_type() == \"DFF\" || node->get_gate_type() == \"DFFX1\") {
+            if (node->get_gate_type() == "DFF" || node->get_gate_type() == "DFFX1") {
                 dff_count++;
-                // std::cout << \"[DEBUG][INIT] Converting DFF Node: \" << id // DEBUG REMOVED
-                          // << \" (Original InDegree: \" << node->inDegree << \")\" << std::endl; // DEBUG REMOVED
+                // std::cout << "[DEBUG][INIT] Converting DFF Node: " << id // DEBUG REMOVED
+                          // << " (Original InDegree: " << node->inDegree << ")" << std::endl; // DEBUG REMOVED
 
                 // --- Start of Modification ---
                 // Get the D-pin driver node ID (assuming single fanin for DFF)
                 NodeID d_pin_driver_id = -1;
                 if (!node->get_fanin_list().empty()) {
                     d_pin_driver_id = node->get_fanin_list().front();
-                    // std::cout << \"[DEBUG][INIT]   DFF \" << id << \" driver is Node: \" << d_pin_driver_id << std::endl; // DEBUG REMOVED
+                    // std::cout << "[DEBUG][INIT]   DFF " << id << " driver is Node: " << d_pin_driver_id << std::endl; // DEBUG REMOVED
                     // Add to list to mark later
                     if (d_pin_driver_id >= 0 && d_pin_driver_id < num_nodes && nodes_[d_pin_driver_id] != nullptr) {
                          d_pin_drivers_to_mark_output.push_back(d_pin_driver_id);
                     } else {
-                         // std::cerr << \"[WARN][INIT] DFF \" << id << \" has invalid D-pin driver ID: \" << d_pin_driver_id << std::endl; // DEBUG REMOVED
+                         // std::cerr << "[WARN][INIT] DFF " << id << " has invalid D-pin driver ID: " << d_pin_driver_id << std::endl; // DEBUG REMOVED
                     }
                 } else {
-                     // std::cerr << \"[WARN][INIT] DFF \" << id << \" has empty fanin list! Cannot mark driver.\" << std::endl; // DEBUG REMOVED
+                     // std::cerr << "[WARN][INIT] DFF " << id << " has empty fanin list! Cannot mark driver." << std::endl; // DEBUG REMOVED
                 }
 
                 // Clear fanins (breaks cycle for forward traversal)
@@ -435,11 +437,11 @@ void Circuit::convertDFFs() {
     }
 
     // --- New Step: Mark D-pin drivers as output pads ---
-    // std::cout << \"[DEBUG][INIT] Marking \" << d_pin_drivers_to_mark_output.size() << \" D-pin drivers as output pads.\" << std::endl; // DEBUG REMOVED
+    // std::cout << "[DEBUG][INIT] Marking " << d_pin_drivers_to_mark_output.size() << " D-pin drivers as output pads." << std::endl; // DEBUG REMOVED
     for (NodeID driver_id : d_pin_drivers_to_mark_output) {
          if (driver_id >= 0 && driver_id < num_nodes && nodes_[driver_id] != nullptr) {
               nodes_[driver_id]->set_output_pad(true);
-              // std::cout << \"[DEBUG][INIT]   Marked Node \" << driver_id << \" as output pad.\" << std::endl; // DEBUG REMOVED
+              // std::cout << "[DEBUG][INIT]   Marked Node " << driver_id << " as output pad." << std::endl; // DEBUG REMOVED
               // Check if this driver was ALSO an original PO and add it to primary_outputs_ if not already there
               // This handles cases where a DFF output IS a primary output.
               // Find if driver_id is already in primary_outputs_
@@ -451,29 +453,29 @@ void Circuit::convertDFFs() {
                     }
                 }
                 if (!already_po) {
-                    // std::cout << \"[DEBUG][INIT]   Adding D-pin driver \" << driver_id << \" to primary_outputs_ list (was not original PO).\" << std::endl; // DEBUG REMOVED
+                    // std::cout << "[DEBUG][INIT]   Adding D-pin driver " << driver_id << " to primary_outputs_ list (was not original PO)." << std::endl; // DEBUG REMOVED
                     primary_outputs_.push_back(nodes_[driver_id]); // Add driver to PO list for delay calc etc.
                 }
          }
     }
     // --- End New Step ---
 
-     // std::cout << \"[DEBUG][INIT] Finished DFF conversion. Converted \" << dff_count << \" DFFs.\" << std::endl; // DEBUG REMOVED
+     // std::cout << "[DEBUG][INIT] Finished DFF conversion. Converted " << dff_count << " DFFs." << std::endl; // DEBUG REMOVED
 
     // --- DEBUG PRINT: Check PO flags after DFF conversion --- // DEBUG REMOVED
-    /*
-    std::cout << \"[DEBUG][INIT] --- Checking PO Node Flags Post-DFF Conversion ---\" << std::endl;
+    /* // DEBUG REMOVED
+    std::cout << "[DEBUG][INIT] --- Checking PO Node Flags Post-DFF Conversion ---" << std::endl;
     for (NodeID id = 37; id <= 106; ++id) { // Check the specific PO node IDs
         if (id < nodes_.size() && nodes_[id] != nullptr) {
-            std::cout << \"[DEBUG][INIT] Node ID: \" << id 
-                      << \" input_pad=\" << nodes_[id]->is_input_pad() 
-                      << \" output_pad=\" << nodes_[id]->is_output_pad() 
-                      << \" gate_type=\" << nodes_[id]->get_gate_type() 
+            std::cout << "[DEBUG][INIT] Node ID: " << id 
+                      << " input_pad=" << nodes_[id]->is_input_pad() 
+                      << " output_pad=" << nodes_[id]->is_output_pad() 
+                      << " gate_type=" << nodes_[id]->get_gate_type() 
                       << std::endl;
         } else {
-            std::cout << \"[DEBUG][INIT] Node ID: \" << id << \" not found or is nullptr.\" << std::endl;
+            std::cout << "[DEBUG][INIT] Node ID: " << id << " not found or is nullptr." << std::endl;
         }
     }
-    std::cout << \"[DEBUG][INIT] --------------------------------------------------\" << std::endl;
-    */
+    std::cout << "[DEBUG][INIT] --------------------------------------------------" << std::endl;
+    */ // DEBUG REMOVED
 }

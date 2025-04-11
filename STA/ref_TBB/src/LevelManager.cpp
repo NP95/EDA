@@ -33,36 +33,24 @@ void LevelManager::compute_forward_levels(Circuit& circuit) {
     std::queue<CircuitNode*> zero_in_degree_queue;
 
     // Initialize in-degrees and find starting nodes (level 0)
-    // std::cout << \"[DEBUG][LEVEL] Initializing forward levels. Total possible nodes: \" << num_nodes << std::endl;
     for (NodeID id = 0; id < num_nodes; ++id) {
         CircuitNode* node = circuit.nodes_[id];
         if (node != nullptr) {
             current_in_degrees[id] = node->inDegree;
             // Add actual primary inputs (inDegree == 0) OR DFF outputs (marked as input_pad) to the initial queue
             if (node->inDegree == 0 || node->is_input_pad()) {
-                // std::cout << \"[DEBUG][LEVEL] Adding initial node to queue: \" << node->get_node_id() 
-                          // << \" (Type: \" << (node->is_input_pad() ? \"INPUT/DFF\" : node->get_gate_type())
-                          // << \", InDegree=\" << node->inDegree << \")\" << std::endl;
                 zero_in_degree_queue.push(node);
-                // Check if the nodes of interest are level 0
-                /*
-                if (node->get_node_id() == 699 || node->get_node_id() == 686) {
-                    std::cout << \"[DEBUG][LEVEL] Node ID: \" << node->get_node_id() << \" assigned level 0 (Initial Queue)\" << std::endl;
-                }
-                */
             }
         } else {
             current_in_degrees[id] = -1; // Mark unused node IDs
         }
     }
-    // std::cout << \"[DEBUG][LEVEL] Initial queue size: \" << zero_in_degree_queue.size() << std::endl;
 
     size_t processed_node_count = 0;
     int current_level_index = 0;
 
     while (!zero_in_degree_queue.empty()) {
         size_t nodes_in_level = zero_in_degree_queue.size();
-        // std::cout << \"[DEBUG][LEVEL] Processing Level \" << current_level_index << \" with \" << nodes_in_level << \" nodes.\" << std::endl;
         forward_levels_.emplace_back(); // Add a vector for the new level
         forward_levels_[current_level_index].reserve(nodes_in_level); // Pre-allocate space
 
@@ -70,39 +58,25 @@ void LevelManager::compute_forward_levels(Circuit& circuit) {
         for (size_t i = 0; i < nodes_in_level; ++i) {
             CircuitNode* current_node = zero_in_degree_queue.front();
             zero_in_degree_queue.pop();
-            // std::cout << \"[DEBUG][LEVEL]   Dequeued node: \" << current_node->get_node_id() << std::endl;
 
             // Assign node to the current level
             forward_levels_[current_level_index].push_back(current_node);
             processed_node_count++;
-
-            // Check if the dequeued node is one we are interested in
-            /*
-            if (current_node->get_node_id() == 699 || current_node->get_node_id() == 686) {
-                std::cout << \"[DEBUG][LEVEL] Node ID: \" << current_node->get_node_id() << \" assigned level \" << current_level_index << std::endl;
-            }
-            */
 
             // Process fanouts
             for (const NodeID& fanout_id : current_node->fanout_list) {
                  // Check bounds and if the node exists
                   if (fanout_id >= 0 && fanout_id < num_nodes && circuit.nodes_[fanout_id] != nullptr) {
                      current_in_degrees[fanout_id]--;
-                     // std::cout << \"[DEBUG][LEVEL]     Decremented fanout \" << fanout_id << \", new in-degree: \" << current_in_degrees[fanout_id] << std::endl;
                      // Only add to queue if in-degree is 0 AND it's not an input_pad (which should have been added initially)
                      if (current_in_degrees[fanout_id] == 0 && !circuit.nodes_[fanout_id]->is_input_pad()) {
-                         // std::cout << \"[DEBUG][LEVEL]       Adding fanout \" << fanout_id << \" to queue.\" << std::endl;
                          zero_in_degree_queue.push(circuit.nodes_[fanout_id]);
                      }
-                 } else {
-                     // std::cerr << \"[WARN][LEVEL] Node \" << current_node->get_node_id() << \" has invalid fanout ID in fanout list: \" << fanout_id << std::endl;
-                  }
+                 }
              }
         }
         current_level_index++;
     }
-
-    // std::cout << \"[DEBUG][LEVEL] Forward level computation finished. Processed nodes: \" << processed_node_count << std::endl;
 
     // Set the maximum level (0-based index)
     max_level_ = forward_levels_.empty() ? -1 : static_cast<int>(forward_levels_.size()) - 1;
