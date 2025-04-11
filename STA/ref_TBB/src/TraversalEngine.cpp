@@ -34,7 +34,7 @@ void TraversalEngine::run_parallel_forward_traversal() {
     total_circuit_delay_ = 0.0; // Reset delay
     const auto& forward_levels = level_manager_.get_forward_levels();
     size_t num_levels = forward_levels.size();
-    std::cout << "[DEBUG][FWD] Starting forward traversal. Levels found: " << num_levels << std::endl;
+    // std::cout << "[DEBUG][FWD] Starting forward traversal. Levels found: " << num_levels << std::endl;
 
     // Level 0 typically contains input pads, already initialized
 
@@ -42,9 +42,10 @@ void TraversalEngine::run_parallel_forward_traversal() {
     for (size_t level_idx = 1; level_idx < num_levels; ++level_idx) {
         const auto& current_level_nodes = forward_levels[level_idx];
         size_t num_nodes_in_level = current_level_nodes.size();
-        std::cout << "[DEBUG][FWD] Processing Level " << level_idx << " with " << num_nodes_in_level << " nodes." << std::endl;
+        // std::cout << "[DEBUG][FWD] Processing Level " << level_idx << " with " << num_nodes_in_level << " nodes." << std::endl;
 
          // --- Debug Print: List nodes in the current level --- 
+         /*
          std::cout << "[DEBUG][FWD] Nodes in Level " << level_idx << ": [ ";
          bool first_node = true;
          for (const auto* node_ptr : current_level_nodes) {
@@ -55,6 +56,7 @@ void TraversalEngine::run_parallel_forward_traversal() {
              }
          }
          std::cout << " ]" << std::endl;
+         */
          // --- End Debug Print ---
 
         if (num_nodes_in_level == 0) continue; // Skip empty levels
@@ -68,23 +70,24 @@ void TraversalEngine::run_parallel_forward_traversal() {
                 for (size_t i = r.begin(); i != r.end(); ++i) {
                     CircuitNode* node = current_level_nodes[i];
                     if (node) { 
-                        std::cerr << "[DEBUG][TRAVERSAL_ENGINE] Calling calculate_output_timing for Node " << node->get_node_id() << std::endl;
+                        // std::cerr << "[DEBUG][TRAVERSAL_ENGINE] Calling calculate_output_timing for Node " << node->get_node_id() << std::endl;
                         node->calculate_output_timing(gate_db_, nodes_); 
                         local_processed_count++;
                     }
                 }
                  nodes_processed_in_level += local_processed_count; // Atomic update
             });
-        std::cout << "[DEBUG][FWD] Level " << level_idx << " processed nodes: " << nodes_processed_in_level << std::endl;
+        // std::cout << "[DEBUG][FWD] Level " << level_idx << " processed nodes: " << nodes_processed_in_level << std::endl;
     }
 
     // After processing all levels, find the maximum delay among output pads
     double max_delay = 0.0;
     // std::vector<CircuitNode*> output_nodes; // Get from Circuit object instead
     const auto& output_nodes = circuit_.get_primary_outputs(); // Use the optimized list
-    std::cout << "[DEBUG][FWD] Found " << output_nodes.size() << " primary output nodes for delay calculation." << std::endl;
+    // std::cout << "[DEBUG][FWD] Found " << output_nodes.size() << " primary output nodes for delay calculation." << std::endl;
     
     // Add print BEFORE reduction to show individual output delays
+    /*
     std::cout << "[DEBUG][FWD] --- Output Node Delays BEFORE Reduction ---" << std::endl;
     for (const auto* node : output_nodes) {
         if (node) {
@@ -95,6 +98,7 @@ void TraversalEngine::run_parallel_forward_traversal() {
         }
     }
     std::cout << "[DEBUG][FWD] ----------------------------------------" << std::endl;
+    */
     
      max_delay = tbb::parallel_reduce(
         tbb::blocked_range<size_t>(0, output_nodes.size()),
@@ -107,13 +111,13 @@ void TraversalEngine::run_parallel_forward_traversal() {
                      // Simple check: Use the node's timeOut directly.
                      // The primary_outputs_ list now correctly contains original POs and relevant D-pin drivers.
                      double arrival_time_to_consider = po_node->timeOut;
-                     // std::cout << \"[DEBUG][REDUCE] Considering PO Node \" << po_node->node_id_ << \" timeOut=\" << arrival_time_to_consider << std::endl;
+                     // std::cout << "[DEBUG][REDUCE] Considering PO Node " << po_node->node_id_ << " timeOut=" << arrival_time_to_consider << std::endl;
                      
                      // Add check for non-finite values
                      if (std::isfinite(arrival_time_to_consider)) {
                         current_max = std::max(current_max, arrival_time_to_consider);
                      } else {
-                        // std::cerr << \"[WARN][FWD] Non-finite arrival_time_to_consider found for output node: \" 
+                        // std::cerr << "[WARN][FWD] Non-finite arrival_time_to_consider found for output node: " 
                                   // << po_node->node_id_ << std::endl;
                      }
                     // --- End of Modification ---
@@ -126,9 +130,9 @@ void TraversalEngine::run_parallel_forward_traversal() {
         }
     );
 
-    std::cout << "[DEBUG][FWD] Calculated max_delay from outputs: " << max_delay << std::endl;
+    // std::cout << "[DEBUG][FWD] Calculated max_delay from outputs: " << max_delay << std::endl;
     total_circuit_delay_.store(max_delay);
-    std::cout << "[DEBUG][FWD] Finished forward traversal. Stored totalCircuitDelay: " << total_circuit_delay_.load() << std::endl;
+    // std::cout << "[DEBUG][FWD] Finished forward traversal. Stored totalCircuitDelay: " << total_circuit_delay_.load() << std::endl;
 }
 
 void TraversalEngine::run_parallel_backward_traversal(double circuit_max_delay) {
@@ -189,7 +193,7 @@ std::vector<CircuitNode*> TraversalEngine::find_critical_path() {
      }
 
     if (!current_node) {
-        std::cerr << "Error: Could not find a starting output node for critical path trace (min_slack = " << min_slack << ")." << std::endl;
+        // std::cerr << "Error: Could not find a starting output node for critical path trace (min_slack = " << min_slack << ")." << std::endl;
         return critical_path; // Return empty path
     }
     
@@ -212,12 +216,12 @@ std::vector<CircuitNode*> TraversalEngine::find_critical_path() {
                      next_node = fanin_node;
                  }
             } else {
-                 std::cerr << "Warning: Invalid fanin ID " << fanin_id << " encountered during critical path trace from node " << current_node->get_node_id() << std::endl;
+                 // std::cerr << "Warning: Invalid fanin ID " << fanin_id << " encountered during critical path trace from node " << current_node->get_node_id() << std::endl;
             }
         }
         current_node = next_node; 
         if (current_node == nullptr && !critical_path.back()->is_input_pad()){
-             std::cerr << "Warning: Critical path trace stopped prematurely before reaching an input pad." << std::endl;
+             // std::cerr << "Warning: Critical path trace stopped prematurely before reaching an input pad." << std::endl;
              break;
         }
     }

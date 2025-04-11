@@ -65,14 +65,14 @@ void CircuitNode::initialize_timing_vectors() {
 // Calculate output timing based on fanin arrival times and slews
 void CircuitNode::calculate_output_timing(const GateDatabase& gate_db, const std::vector<CircuitNode*>& circuit_nodes) {
     // --- DEBUG: Check initial timeout value ---
-    std::cout << "[DEBUG][TIMING_ENTRY] Node ID: " << node_id_ << " Initial timeOut=" << this->timeOut << std::endl;
+    // std::cout << "[DEBUG][TIMING_ENTRY] Node ID: " << node_id_ << " Initial timeOut=" << this->timeOut << std::endl;
 
     if (input_pad_) {
         // Input pads already initialized, nothing to calculate here for forward pass
         return;
     }
     if (!gate_info_) {
-        std::cerr << "Warning: Node " << node_id_ << " has no GateInfo. Skipping timing calculation." << std::endl;
+        // std::cerr << "Warning: Node " << node_id_ << " has no GateInfo. Skipping timing calculation." << std::endl;
         return;
     }
 
@@ -83,10 +83,12 @@ void CircuitNode::calculate_output_timing(const GateDatabase& gate_db, const std
     size_t num_fanins = fanin_list_.size();
     // Ensure vectors were initialized
     if (inputArrivalTimes.size() != num_fanins || inputSlews.size() != num_fanins || gateDelays.size() != num_fanins) {
-         std::cerr << "Error: Node " << node_id_ << " timing vectors not correctly initialized. Expected size " << num_fanins
-                   << ", got inputArrivalTimes: " << inputArrivalTimes.size()
-                   << ", inputSlews: " << inputSlews.size()
-                   << ", gateDelays: " << gateDelays.size() << std::endl;
+         /*
+         // std::cerr << "Error: Node " << node_id_ << " timing vectors not correctly initialized. Expected size " << num_fanins
+         //           << ", got inputArrivalTimes: " << inputArrivalTimes.size()
+         //           << ", inputSlews: " << inputSlews.size()
+         //           << ", gateDelays: " << gateDelays.size() << std::endl;
+         */
         // Attempt to resize, or handle error appropriately
         initialize_timing_vectors(); // Re-initialize as a fallback, might hide issues
         if (inputArrivalTimes.size() != num_fanins) return; // If still wrong, bail
@@ -102,23 +104,23 @@ void CircuitNode::calculate_output_timing(const GateDatabase& gate_db, const std
     delay_for_max_arrival = 0.0; // Initialize delay corresponding to the max arrival path
 
     // Add Debug Print before loop
-    std::cout << "[DEBUG][TIMING] Node ID: " << node_id_ << " Type: " << gate_type_ << " Load: " << outputLoad << " NumFanins: " << num_fanins << std::endl;
+    // std::cout << "[DEBUG][TIMING] Node ID: " << node_id_ << " Type: " << gate_type_ << " Load: " << outputLoad << " NumFanins: " << num_fanins << std::endl;
 
     for (size_t i = 0; i < num_fanins; ++i) {
         NodeID fanin_id = fanin_list_[i];
 
         // Get fanin node's output timing
         if (fanin_id < 0 || fanin_id >= circuit_nodes.size() || circuit_nodes[fanin_id] == nullptr) {
-             std::cerr << "Warning: Node " << node_id_ << " has invalid fanin ID: " << fanin_id << " at index " << i << std::endl;
+             // std::cerr << "Warning: Node " << node_id_ << " has invalid fanin ID: " << fanin_id << " at index " << i << std::endl;
              continue; // Skip this invalid fanin
         }
         CircuitNode* fanin_node = circuit_nodes[fanin_id];
 
         // Add Debug Print for Fan-in values
-        std::cout << "[DEBUG][TIMING]   Fanin[" << i << "]: ID=" << fanin_id 
-                  << " timeOut=" << fanin_node->timeOut 
-                  << " slewOut=" << fanin_node->slewOut 
-                  << std::endl;
+        // std::cout << "[DEBUG][TIMING]   Fanin[" << i << "]: ID=" << fanin_id 
+        //           << " timeOut=" << fanin_node->timeOut 
+        //           << " slewOut=" << fanin_node->slewOut 
+        //           << std::endl;
 
         // Assign fanin's output values to this node's input vectors
         inputArrivalTimes[i] = fanin_node->timeOut;
@@ -129,10 +131,10 @@ void CircuitNode::calculate_output_timing(const GateDatabase& gate_db, const std
         double current_slew = multiplier * TimingUtils::calculate_output_slew(gate_db, gate_type_, inputSlews[i], outputLoad);
 
         // Add Debug Print for calculated delay/slew for this path
-        std::cout << "[DEBUG][TIMING]     Path[" << i << "]:" 
-                  << " calc_delay=" << current_delay 
-                  << " calc_slew=" << current_slew 
-                  << std::endl;
+        // std::cout << "[DEBUG][TIMING]     Path[" << i << "]:" 
+        //           << " calc_delay=" << current_delay 
+        //           << " calc_slew=" << current_slew 
+        //           << std::endl;
 
         // Store the delay associated with this specific input path
         gateDelays[i] = current_delay; 
@@ -141,9 +143,9 @@ void CircuitNode::calculate_output_timing(const GateDatabase& gate_db, const std
         double arrival_via_this_input = inputArrivalTimes[i] + current_delay;
 
         // Add Debug Print for arrival time via this path
-        std::cout << "[DEBUG][TIMING]     Path[" << i << "]:" 
-                  << " arrival=" << arrival_via_this_input 
-                  << std::endl;
+        // std::cout << "[DEBUG][TIMING]     Path[" << i << "]:" 
+        //           << " arrival=" << arrival_via_this_input 
+        //           << std::endl;
 
         // Update the node's overall output timing if this path is slower (later arrival)
         if (arrival_via_this_input > max_arrival_time) {
@@ -154,11 +156,11 @@ void CircuitNode::calculate_output_timing(const GateDatabase& gate_db, const std
     }
 
     // Add Debug Print after loop for final values
-    std::cout << "[DEBUG][TIMING] Node ID: " << node_id_ << " FINAL:" 
-              << " max_arrival=" << max_arrival_time 
-              << " slew_for_max=" << slew_for_max_arrival 
-              << " delay_for_max=" << delay_for_max_arrival 
-              << std::endl;
+    // std::cout << "[DEBUG][TIMING] Node ID: " << node_id_ << " FINAL:" 
+    //           << " max_arrival=" << max_arrival_time 
+    //           << " slew_for_max=" << slew_for_max_arrival 
+    //           << " delay_for_max=" << delay_for_max_arrival 
+    //           << std::endl;
 
     // Set the final output values for the node based on the critical input path found
     timeOut = max_arrival_time;
@@ -179,7 +181,7 @@ void CircuitNode::calculate_required_time_and_slack(const GateDatabase& gate_db,
 
         for (const NodeID& fanout_id : fanout_list) {
             if (fanout_id < 0 || fanout_id >= circuit_nodes.size() || circuit_nodes[fanout_id] == nullptr) {
-                std::cerr << "Warning: Node " << node_id_ << " has invalid fanout ID: " << fanout_id << " during backward pass." << std::endl;
+                // std::cerr << "Warning: Node " << node_id_ << " has invalid fanout ID: " << fanout_id << " during backward pass." << std::endl;
                 continue;
             }
             CircuitNode* fanout_node = circuit_nodes[fanout_id];
@@ -196,7 +198,7 @@ void CircuitNode::calculate_required_time_and_slack(const GateDatabase& gate_db,
                         found_fanin_index = true;
                         break;
                     } else {
-                         std::cerr << "Error: gateDelays vector size mismatch in fanout node " << fanout_id << " when processing node " << node_id_ << std::endl;
+                         // std::cerr << "Error: gateDelays vector size mismatch in fanout node " << fanout_id << " when processing node " << node_id_ << std::endl;
                          // Handle error: maybe use fanout_node->cellDelay as an approximation?
                          delay_through_fanout = fanout_node->cellDelay; // Fallback, might be inaccurate
                          found_fanin_index = true; // Proceed with caution
@@ -206,7 +208,7 @@ void CircuitNode::calculate_required_time_and_slack(const GateDatabase& gate_db,
             }
 
             if (!found_fanin_index) {
-                 std::cerr << "Error: Node " << node_id_ << " not found in fanin list of its supposed fanout " << fanout_id << std::endl;
+                 // std::cerr << "Error: Node " << node_id_ << " not found in fanin list of its supposed fanout " << fanout_id << std::endl;
                  continue; // Skip this fanout if topology is inconsistent
             }
 
