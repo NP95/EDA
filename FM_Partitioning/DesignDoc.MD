@@ -253,35 +253,83 @@ The gain update logic was moved inside `FMEngine::applyMove` and replaced with a
 ## 7. Performance Considerations
 
 ### 7.1. Data Structures
-Efficient Gain Bucket (O(1) operations ideally). `unordered_map` for name lookups. `vector` for indexed access to cells/nets. Pointers for direct access between cells/nets/bucket nodes.
+- Use efficient data structures for O(1) operations where possible
+- Leverage `std::unordered_map` for name lookups
+- Use `std::vector` for indexed access to cells/nets
+- Maintain pointers for direct access between cells/nets/bucket nodes
 
-### 7.2. Algorithm
-The **Selective Gain Update** strategy (detailed in 6.3) significantly addressed the gain update bottleneck, yielding major performance improvements (e.g., >20x speedup on larger benchmarks) by avoiding costly recalculations and performing O(1) incremental updates for affected neighbors. Efficiently finding the best feasible cell remains important via the `GainBucket`.
+### 7.2. Algorithm Optimizations
+- Implement selective gain updates to avoid full recalculation
+- Use adaptive early pass termination to reduce unnecessary iterations
+- Maintain accurate cut size tracking with periodic recalculation
+- Optimize balance constraint checking during moves
 
-### 7.3. Memory
-Avoid excessive copying. Use pointers and references where appropriate. Pre-allocate vectors if sizes are known (`cells_`, `nets_`). 
+### 7.3. Memory Management
+- Pre-allocate vectors when sizes are known
+- Use smart pointers where appropriate
+- Minimize copying of large data structures
+- Implement efficient move semantics
 
-### 7.4. Compiler Optimization
-Compile with `-O2` or `-O3` (achieved via `CMAKE_BUILD_TYPE=Release`).
+### 7.4. Compiler Optimizations
+- Use `-O3` optimization level
+- Enable link-time optimization where beneficial
+- Profile-guided optimization for critical paths
+- Use appropriate compiler flags for the target platform
 
-### 7.5. Language Choice
-C++ is recommended for performance.
+### 7.5. Testing and Validation
+- Implement comprehensive unit tests
+- Use the provided checker program for validation
+- Benchmark against known good solutions
+- Profile performance on various input sizes
 
-### 7.6. Adaptive Early Pass Termination (Added)
-To significantly reduce runtime on large benchmarks, passes are terminated early if no improvement in the best-found cut size occurs for a certain number of moves. This threshold is adaptive, starting higher in early passes (e.g., 2000) and decreasing in later passes (down to a minimum, e.g., 500) to balance exploration and efficiency.
+## 8. Implementation Plan
 
-## 8. Phased Implementation Plan
+### 8.1. Phase 1: Core Implementation
+1. Implement basic data structures (Netlist, PartitionState)
+2. Develop parser for input files
+3. Create output generator
+4. Implement basic F-M algorithm without optimizations
 
-Based on the assignment checkpoint structure, the implementation will be divided into two main phases:
+### 8.2. Phase 2: Optimization
+1. Implement gain bucket data structure
+2. Add selective gain updates
+3. Implement adaptive early termination
+4. Optimize memory usage and data structures
 
-### 8.1. Phase 1 (First Checkpoint)
+### 8.3. Phase 3: Testing and Validation
+1. Create unit tests for core components
+2. Implement integration tests
+3. Validate against checker program
+4. Benchmark performance
 
-**Focus: Foundation and Basic Data Structures**
+### 8.4. Phase 4: Documentation and Cleanup
+1. Complete code documentation
+2. Create user documentation
+3. Optimize build system
+4. Final performance tuning
 
-1. **Parser Implementation**
-   - Implement input file parsing to extract balance factor and netlist information
-   - Create basic data structures to represent cells and nets
-   - Set up connectivity information between cells and nets
+## 9. Future Improvements
 
-2. **Basic Netlist Structure**
-   - Implement `
+### 9.1. Algorithm Enhancements
+- Implement multi-level partitioning
+- Add support for weighted nets
+- Explore alternative gain calculation methods
+- Implement parallel processing for large instances
+
+### 9.2. Performance Optimizations
+- Further optimize gain update logic
+- Implement more sophisticated early termination strategies
+- Add support for incremental partitioning
+- Explore GPU acceleration for large instances
+
+### 9.3. Feature Additions
+- Support for multi-way partitioning
+- Add visualization tools
+- Implement progress reporting
+- Add support for different input formats
+
+### 9.4. Code Quality
+- Enhance error handling
+- Improve code modularity
+- Add more comprehensive testing
+- Implement continuous integration
