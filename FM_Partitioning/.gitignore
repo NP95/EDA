@@ -9,4 +9,4 @@ build_debug/
 outputs/
 
 # Log files
-*.log 
+*.log FM_Partitioning_Skeleton/

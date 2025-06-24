@@ -231,11 +231,15 @@ void TaskflowTimingEngine::calculateMaxDelayDeterministic() {
 }
 
 void TaskflowTimingEngine::initializeInputPads() {
-    for (CircuitNode* node : circuit.get_nodes_vector()) {
+    LOG_TRACE("InitForward", "Initializing input pad values.");
+    for (auto* node : circuit.get_nodes_vector()) {
         if (node && node->is_input_pad()) {
-            node->slewOut = 0.002;
+            // Set initial slew to 2.0 ps as per analysis of reference implementation
+            node->slewOut = 2.0; 
             node->timeOut = 0.0;
-            LOG_TRACE("InitForward", "Initialized input " + (node->get_gate_type().empty() ? "PI" : node->get_gate_type()) + "-n" + std::to_string(node->get_node_id()) + " with slew 0.002 and time 0.0");
+            std::stringstream ss;
+            ss << "Initialized input " << (node->get_gate_type().empty() ? "PI" : node->get_gate_type()) << "-n" << node->get_node_id() << " with slew 2.0 and time 0.0";
+            LOG_TRACE("InitForward", ss.str());
         }
     }
 }
