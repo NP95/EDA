@@ -1,0 +1,230 @@
+2025-06-24 16:35:13.141 [INFO] [MAIN] --- Static Timing Analysis Tool ---
+2025-06-24 16:35:13.141 [INFO] [MAIN] Liberty File: NLDM_lib_max2Inp
+2025-06-24 16:35:13.141 [INFO] [MAIN] Circuit File: cleaned_iscas89_99_circuits/c17.isc
+2025-06-24 16:35:13.141 [INFO] [MAIN] 
+2025-06-24 16:35:13.141 [INFO] [MAIN] Parsing Liberty File...
+2025-06-24 16:35:13.144 [TRACE] [Circuit] Circuit object creation started using two-pass regex parser.
+2025-06-24 16:35:13.144 [TRACE] [Circuit] Pre-allocated nodes vector of size 12
+2025-06-24 16:35:13.144 [TRACE] [Parser] Parsed INPUT pad: n1
+2025-06-24 16:35:13.144 [TRACE] [Parser] Parsed INPUT pad: n2
+2025-06-24 16:35:13.144 [TRACE] [Parser] Parsed INPUT pad: n3
+2025-06-24 16:35:13.144 [TRACE] [Parser] Parsed INPUT pad: n4
+2025-06-24 16:35:13.144 [TRACE] [Parser] Parsed INPUT pad: n5
+2025-06-24 16:35:13.144 [TRACE] [Parser] Parsed OUTPUT pad: n6
+2025-06-24 16:35:13.144 [TRACE] [Parser] Parsed OUTPUT pad: n7
+2025-06-24 16:35:13.144 [TRACE] [Parser] Parsed gate NAND-n8 with fan-ins: n1 n3 
+2025-06-24 16:35:13.144 [TRACE] [Parser] Parsed gate NAND-n9 with fan-ins: n3 n4 
+2025-06-24 16:35:13.144 [TRACE] [Parser] Parsed gate NAND-n10 with fan-ins: n2 n9 
+2025-06-24 16:35:13.144 [TRACE] [Parser] Parsed gate NAND-n11 with fan-ins: n9 n5 
+2025-06-24 16:35:13.144 [TRACE] [Parser] Parsed gate NAND-n6 with fan-ins: n8 n10 
+2025-06-24 16:35:13.144 [TRACE] [Parser] Parsed gate NAND-n7 with fan-ins: n10 n11 
+2025-06-24 16:35:13.144 [TRACE] [Circuit] Finished parsing circuit file.
+2025-06-24 16:35:13.144 [INFO] [MAIN] Liberty file parsed successfully.
+2025-06-24 16:35:13.144 [INFO] [MAIN] 
+2025-06-24 16:35:13.144 [INFO] [MAIN] Parsing Circuit Netlist...
+2025-06-24 16:35:13.144 [INFO] [MAIN] Circuit netlist parsed successfully.
+2025-06-24 16:35:13.144 [INFO] [MAIN] 
+2025-06-24 16:35:13.144 [TRACE] [MAIN] Preparing circuit graph (DFF conversion, Fanout lists).
+2025-06-24 16:35:13.144 [TRACE] [CreateFanout] Starting fanout list creation and degree calculation.
+2025-06-24 16:35:13.144 [TRACE] [CreateFanout] Added node NAND-n6 to fanout list of NAND-n8. Incremented fanin outDegree to 1
+2025-06-24 16:35:13.144 [TRACE] [CreateFanout] Added node NAND-n6 to fanout list of NAND-n10. Incremented fanin outDegree to 1
+2025-06-24 16:35:13.144 [TRACE] [CreateFanout] Added node NAND-n7 to fanout list of NAND-n10. Incremented fanin outDegree to 2
+2025-06-24 16:35:13.144 [TRACE] [CreateFanout] Added node NAND-n7 to fanout list of NAND-n11. Incremented fanin outDegree to 1
+2025-06-24 16:35:13.144 [TRACE] [CreateFanout] Added node NAND-n8 to fanout list of -n1. Incremented fanin outDegree to 1
+2025-06-24 16:35:13.144 [TRACE] [CreateFanout] Added node NAND-n8 to fanout list of -n3. Incremented fanin outDegree to 1
+2025-06-24 16:35:13.144 [TRACE] [CreateFanout] Added node NAND-n9 to fanout list of -n3. Incremented fanin outDegree to 2
+2025-06-24 16:35:13.144 [TRACE] [CreateFanout] Added node NAND-n9 to fanout list of -n4. Incremented fanin outDegree to 1
+2025-06-24 16:35:13.144 [TRACE] [CreateFanout] Added node NAND-n10 to fanout list of -n2. Incremented fanin outDegree to 1
+2025-06-24 16:35:13.144 [TRACE] [CreateFanout] Added node NAND-n10 to fanout list of NAND-n9. Incremented fanin outDegree to 1
+2025-06-24 16:35:13.144 [TRACE] [CreateFanout] Added node NAND-n11 to fanout list of NAND-n9. Incremented fanin outDegree to 2
+2025-06-24 16:35:13.144 [TRACE] [CreateFanout] Added node NAND-n11 to fanout list of -n5. Incremented fanin outDegree to 1
+2025-06-24 16:35:13.144 [TRACE] [CreateFanout] Fanout list creation and degree calculation finished.
+2025-06-24 16:35:13.144 [TRACE] [MAIN] Circuit graph preparation complete.
+2025-06-24 16:35:13.144 [INFO] [MAIN] 
+2025-06-24 16:35:13.144 [INFO] [MAIN] Performing Static Timing Analysis...
+2025-06-24 16:35:13.145 [INFO] [TaskflowEngine] Executor initialized with 8 workers.
+2025-06-24 16:35:13.145 [TRACE] [MAIN] Building forward task graph.
+2025-06-24 16:35:13.145 [TRACE] [BuildForward] Starting to build forward task graph.
+2025-06-24 16:35:13.145 [TRACE] [BuildForward] Forward task graph build complete.
+2025-06-24 16:35:13.145 [TRACE] [MAIN] Building backward task graph.
+2025-06-24 16:35:13.145 [TRACE] [BuildBackward] Starting to build backward task graph.
+2025-06-24 16:35:13.145 [TRACE] [BuildBackward] Backward task graph build complete.
+2025-06-24 16:35:13.145 [TRACE] [MAIN] Executing timing analysis.
+2025-06-24 16:35:13.145 [TRACE] [Execute] Starting forward pass execution.
+2025-06-24 16:35:13.145 [TRACE] [InitForward] Initializing input pad values.
+2025-06-24 16:35:13.145 [TRACE] [InitForward] Initialized input PI-n1 with slew 0.002 and time 0.0
+2025-06-24 16:35:13.145 [TRACE] [InitForward] Initialized input PI-n2 with slew 0.002 and time 0.0
+2025-06-24 16:35:13.145 [TRACE] [InitForward] Initialized input PI-n3 with slew 0.002 and time 0.0
+2025-06-24 16:35:13.145 [TRACE] [InitForward] Initialized input PI-n4 with slew 0.002 and time 0.0
+2025-06-24 16:35:13.145 [TRACE] [InitForward] Initialized input PI-n5 with slew 0.002 and time 0.0
+2025-06-24 16:35:13.145 [TRACE] [ComputeLoads] Starting output load calculation.
+2025-06-24 16:35:13.145 [TRACE] [ComputeLoads] Starting output load calculation for all nodes.
+2025-06-24 16:35:13.145 [TRACE] [ComputeLoads] Reference INV capacitance for unconnected POs: 1.700230
+2025-06-24 16:35:13.145 [TRACE] [ComputeLoads] Node PI-n1 has 1 fanouts. Calculated total load: 1.599032
+2025-06-24 16:35:13.145 [TRACE] [ComputeLoads] Node PI-n2 has 1 fanouts. Calculated total load: 1.599032
+2025-06-24 16:35:13.145 [TRACE] [ComputeLoads] Node PI-n3 has 2 fanouts. Calculated total load: 3.198064
+2025-06-24 16:35:13.145 [TRACE] [ComputeLoads] Node PI-n4 has 1 fanouts. Calculated total load: 1.599032
+2025-06-24 16:35:13.145 [TRACE] [ComputeLoads] Node PI-n5 has 1 fanouts. Calculated total load: 1.599032
+2025-06-24 16:35:13.145 [TRACE] [ComputeLoads] Node NAND-n6 is an unconnected PO. Setting load to 4x INV cap: 6.800920
+2025-06-24 16:35:13.145 [TRACE] [ComputeLoads] Node NAND-n7 is an unconnected PO. Setting load to 4x INV cap: 6.800920
+2025-06-24 16:35:13.145 [TRACE] [ComputeLoads] Node NAND-n8 has 1 fanouts. Calculated total load: 1.599032
+2025-06-24 16:35:13.145 [TRACE] [ComputeLoads] Node NAND-n9 has 2 fanouts. Calculated total load: 3.198064
+2025-06-24 16:35:13.145 [TRACE] [ComputeLoads] Node NAND-n10 has 2 fanouts. Calculated total load: 3.198064
+2025-06-24 16:35:13.146 [TRACE] [ComputeLoads] Node NAND-n11 has 1 fanouts. Calculated total load: 1.599032
+2025-06-24 16:35:13.146 [TRACE] [ComputeLoads] Output load calculation finished.
+2025-06-24 16:35:13.146 [TRACE] [ExecForward] Executing forward task for NAND-n9
+2025-06-24 16:35:13.146 [TRACE] [ExecForward]   Fan-in INP-n3 -> Arrival: 0.00000, Slew: 0.00200
+2025-06-24 16:35:13.146 [TRACE] [ExecForward] Executing forward task for NAND-n8
+2025-06-24 16:35:13.146 [TRACE] [ExecForward]   Fan-in INP-n4 -> Arrival: 0.00000, Slew: 0.00200
+2025-06-24 16:35:13.146 [TRACE] [ExecForward]   Fan-in INP-n1 -> Arrival: 0.00000, Slew: 0.00200
+2025-06-24 16:35:13.146 [TRACE] [FindOutput] Finding output for NAND-n9 with loadCap=3.19806 and 2 inputs.
+2025-06-24 16:35:13.146 [TRACE] [ExecForward]   Fan-in INP-n3 -> Arrival: 0.00000, Slew: 0.00200
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]   Input #0: arrivalTime=0, inputSlew=0.002
+2025-06-24 16:35:13.146 [TRACE] [FindOutput] Finding output for NAND-n8 with loadCap=1.59903 and 2 inputs.
+2025-06-24 16:35:13.146 [TRACE] [CalculateTiming] Calculating delay for NAND with inputSlew=0.002 and loadCap=3.19806
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]   Input #0: arrivalTime=0, inputSlew=0.002
+2025-06-24 16:35:13.146 [TRACE] [CalculateTiming] Calculating delay for NAND with inputSlew=0.002 and loadCap=1.59903
+2025-06-24 16:35:13.146 [TRACE] [Bilinear] Bilinear Params: x=0.00200 y=1.59903 | x1=0.00117 y1=0.36562 x2=0.00472 y2=1.85490 | q11=0.00743 q12=0.01121 q21=0.00896 q22=0.01271 | Result=0.01091
+2025-06-24 16:35:13.146 [TRACE] [Bilinear] Bilinear Params: x=0.00200 y=3.19806 | x1=0.00117 y1=1.85490 x2=0.00472 y2=3.70979 | q11=0.01121 q12=0.01577 q21=0.01271 q22=0.01730 | Result=0.01486
+2025-06-24 16:35:13.146 [TRACE] [CalculateTiming] Calculating slew for NAND with inputSlew=0.002 and loadCap=1.59903
+2025-06-24 16:35:13.146 [TRACE] [CalculateTiming] Calculating slew for NAND with inputSlew=0.002 and loadCap=3.19806
+2025-06-24 16:35:13.146 [TRACE] [Bilinear] Bilinear Params: x=0.00200 y=1.59903 | x1=0.00117 y1=0.36562 x2=0.00472 y2=1.85490 | q11=0.00475 q12=0.00815 q21=0.00475 q22=0.00815 | Result=0.00756
+2025-06-24 16:35:13.146 [TRACE] [Bilinear] Bilinear Params: x=0.00200 y=3.19806 | x1=0.00117 y1=1.85490 x2=0.00472 y2=3.70979 | q11=0.00815 q12=0.01238 q21=0.00815 q22=0.01238 | Result=0.01121
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]     Calculated: cellDelay=0.0109107, outputSlew=0.00756383 -> arrivalTime=0.0109107
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]     Calculated: cellDelay=0.0148645, outputSlew=0.0112128 -> arrivalTime=0.0148645
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]     New critical timing found for this gate.
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]     New critical timing found for this gate.
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]   Input #1: arrivalTime=0, inputSlew=0.002
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]   Input #1: arrivalTime=0, inputSlew=0.002
+2025-06-24 16:35:13.146 [TRACE] [CalculateTiming] Calculating delay for NAND with inputSlew=0.002 and loadCap=1.59903
+2025-06-24 16:35:13.146 [TRACE] [CalculateTiming] Calculating delay for NAND with inputSlew=0.002 and loadCap=3.19806
+2025-06-24 16:35:13.146 [TRACE] [Bilinear] Bilinear Params: x=0.00200 y=1.59903 | x1=0.00117 y1=0.36562 x2=0.00472 y2=1.85490 | q11=0.00743 q12=0.01121 q21=0.00896 q22=0.01271 | Result=0.01091
+2025-06-24 16:35:13.146 [TRACE] [Bilinear] Bilinear Params: x=0.00200 y=3.19806 | x1=0.00117 y1=1.85490 x2=0.00472 y2=3.70979 | q11=0.01121 q12=0.01577 q21=0.01271 q22=0.01730 | Result=0.01486
+2025-06-24 16:35:13.146 [TRACE] [CalculateTiming] Calculating slew for NAND with inputSlew=0.002 and loadCap=1.59903
+2025-06-24 16:35:13.146 [TRACE] [CalculateTiming] Calculating slew for NAND with inputSlew=0.002 and loadCap=3.19806
+2025-06-24 16:35:13.146 [TRACE] [Bilinear] Bilinear Params: x=0.00200 y=1.59903 | x1=0.00117 y1=0.36562 x2=0.00472 y2=1.85490 | q11=0.00475 q12=0.00815 q21=0.00475 q22=0.00815 | Result=0.00756
+2025-06-24 16:35:13.146 [TRACE] [Bilinear] Bilinear Params: x=0.00200 y=3.19806 | x1=0.00117 y1=1.85490 x2=0.00472 y2=3.70979 | q11=0.00815 q12=0.01238 q21=0.00815 q22=0.01238 | Result=0.01121
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]     Calculated: cellDelay=0.0109107, outputSlew=0.00756383 -> arrivalTime=0.0109107
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]     Calculated: cellDelay=0.0148645, outputSlew=0.0112128 -> arrivalTime=0.0148645
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]   Final values for NAND-n8: timeOut=0.0109107, slewOut=0.00756383
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]   Final values for NAND-n9: timeOut=0.0148645, slewOut=0.0112128
+2025-06-24 16:35:13.146 [TRACE] [ExecForward]   Finished NAND-n8 -> timeOut: 0.01091, slewOut: 0.00756
+2025-06-24 16:35:13.146 [TRACE] [ExecForward]   Finished NAND-n9 -> timeOut: 0.01486, slewOut: 0.01121
+2025-06-24 16:35:13.146 [TRACE] [ExecForward] Executing forward task for NAND-n10
+2025-06-24 16:35:13.146 [TRACE] [ExecForward]   Fan-in INP-n2 -> Arrival: 0.00000, Slew: 0.00200
+2025-06-24 16:35:13.146 [TRACE] [ExecForward] Executing forward task for NAND-n11
+2025-06-24 16:35:13.146 [TRACE] [ExecForward]   Fan-in NAND-n9 -> Arrival: 0.01486, Slew: 0.01121
+2025-06-24 16:35:13.146 [TRACE] [ExecForward]   Fan-in NAND-n9 -> Arrival: 0.01486, Slew: 0.01121
+2025-06-24 16:35:13.146 [TRACE] [FindOutput] Finding output for NAND-n10 with loadCap=3.19806 and 2 inputs.
+2025-06-24 16:35:13.146 [TRACE] [ExecForward]   Fan-in INP-n5 -> Arrival: 0.00000, Slew: 0.00200
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]   Input #0: arrivalTime=0, inputSlew=0.002
+2025-06-24 16:35:13.146 [TRACE] [FindOutput] Finding output for NAND-n11 with loadCap=1.59903 and 2 inputs.
+2025-06-24 16:35:13.146 [TRACE] [CalculateTiming] Calculating delay for NAND with inputSlew=0.002 and loadCap=3.19806
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]   Input #0: arrivalTime=0.0148645, inputSlew=0.0112128
+2025-06-24 16:35:13.146 [TRACE] [Bilinear] Bilinear Params: x=0.00200 y=3.19806 | x1=0.00117 y1=1.85490 x2=0.00472 y2=3.70979 | q11=0.01121 q12=0.01577 q21=0.01271 q22=0.01730 | Result=0.01486
+2025-06-24 16:35:13.146 [TRACE] [CalculateTiming] Calculating delay for NAND with inputSlew=0.0112128 and loadCap=1.59903
+2025-06-24 16:35:13.146 [TRACE] [CalculateTiming] Calculating slew for NAND with inputSlew=0.002 and loadCap=3.19806
+2025-06-24 16:35:13.146 [TRACE] [Bilinear] Bilinear Params: x=0.01121 y=1.59903 | x1=0.00472 y1=0.36562 x2=0.01719 y2=1.85490 | q11=0.00896 q12=0.01271 q21=0.01418 q22=0.01895 | Result=0.01522
+2025-06-24 16:35:13.146 [TRACE] [CalculateTiming] Calculating slew for NAND with inputSlew=0.0112128 and loadCap=1.59903
+2025-06-24 16:35:13.146 [TRACE] [Bilinear] Bilinear Params: x=0.00200 y=3.19806 | x1=0.00117 y1=1.85490 x2=0.00472 y2=3.70979 | q11=0.00815 q12=0.01238 q21=0.00815 q22=0.01238 | Result=0.01121
+2025-06-24 16:35:13.146 [TRACE] [Bilinear] Bilinear Params: x=0.01121 y=1.59903 | x1=0.00472 y1=0.36562 x2=0.01719 y2=1.85490 | q11=0.00475 q12=0.00815 q21=0.00780 q22=0.00998 | Result=0.00863
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]     Calculated: cellDelay=0.0148645, outputSlew=0.0112128 -> arrivalTime=0.0148645
+2025-06-24 16:35:13.146 [TRACE] [FindOutput]     Calculated: cellDelay=0.015225, outputSlew=0.00862598 -> arrivalTime=0.0300894
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]     New critical timing found for this gate.
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]     New critical timing found for this gate.
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]   Input #1: arrivalTime=0.0148645, inputSlew=0.0112128
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]   Input #1: arrivalTime=0, inputSlew=0.002
+2025-06-24 16:35:13.147 [TRACE] [CalculateTiming] Calculating delay for NAND with inputSlew=0.0112128 and loadCap=3.19806
+2025-06-24 16:35:13.147 [TRACE] [CalculateTiming] Calculating delay for NAND with inputSlew=0.002 and loadCap=1.59903
+2025-06-24 16:35:13.147 [TRACE] [Bilinear] Bilinear Params: x=0.01121 y=3.19806 | x1=0.00472 y1=1.85490 x2=0.01719 y2=3.70979 | q11=0.01271 q12=0.01730 q21=0.01895 q22=0.02364 | Result=0.01932
+2025-06-24 16:35:13.147 [TRACE] [Bilinear] Bilinear Params: x=0.00200 y=1.59903 | x1=0.00117 y1=0.36562 x2=0.00472 y2=1.85490 | q11=0.00743 q12=0.01121 q21=0.00896 q22=0.01271 | Result=0.01091
+2025-06-24 16:35:13.147 [TRACE] [CalculateTiming] Calculating slew for NAND with inputSlew=0.002 and loadCap=1.59903
+2025-06-24 16:35:13.147 [TRACE] [CalculateTiming] Calculating slew for NAND with inputSlew=0.0112128 and loadCap=3.19806
+2025-06-24 16:35:13.147 [TRACE] [Bilinear] Bilinear Params: x=0.00200 y=1.59903 | x1=0.00117 y1=0.36562 x2=0.00472 y2=1.85490 | q11=0.00475 q12=0.00815 q21=0.00475 q22=0.00815 | Result=0.00756
+2025-06-24 16:35:13.147 [TRACE] [Bilinear] Bilinear Params: x=0.01121 y=3.19806 | x1=0.00472 y1=1.85490 x2=0.01719 y2=3.70979 | q11=0.00815 q12=0.01238 q21=0.00998 q22=0.01302 | Result=0.01172
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]     Calculated: cellDelay=0.0109107, outputSlew=0.00756383 -> arrivalTime=0.0109107
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]     Calculated: cellDelay=0.0193205, outputSlew=0.0117162 -> arrivalTime=0.034185
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]   Final values for NAND-n11: timeOut=0.0300894, slewOut=0.00862598
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]     New critical timing found for this gate.
+2025-06-24 16:35:13.147 [TRACE] [ExecForward]   Finished NAND-n11 -> timeOut: 0.03009, slewOut: 0.00863
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]   Final values for NAND-n10: timeOut=0.034185, slewOut=0.0117162
+2025-06-24 16:35:13.147 [TRACE] [ExecForward]   Finished NAND-n10 -> timeOut: 0.03418, slewOut: 0.01172
+2025-06-24 16:35:13.147 [TRACE] [ExecForward] Executing forward task for NAND-n6
+2025-06-24 16:35:13.147 [TRACE] [ExecForward] Executing forward task for NAND-n7
+2025-06-24 16:35:13.147 [TRACE] [ExecForward]   Fan-in NAND-n8 -> Arrival: 0.01091, Slew: 0.00756
+2025-06-24 16:35:13.147 [TRACE] [ExecForward]   Fan-in NAND-n10 -> Arrival: 0.03418, Slew: 0.01172
+2025-06-24 16:35:13.147 [TRACE] [ExecForward]   Fan-in NAND-n10 -> Arrival: 0.03418, Slew: 0.01172
+2025-06-24 16:35:13.147 [TRACE] [ExecForward]   Fan-in NAND-n11 -> Arrival: 0.03009, Slew: 0.00863
+2025-06-24 16:35:13.147 [TRACE] [FindOutput] Finding output for NAND-n6 with loadCap=6.80092 and 2 inputs.
+2025-06-24 16:35:13.147 [TRACE] [FindOutput] Finding output for NAND-n7 with loadCap=6.80092 and 2 inputs.
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]   Input #0: arrivalTime=0.0109107, inputSlew=0.00756383
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]   Input #0: arrivalTime=0.034185, inputSlew=0.0117162
+2025-06-24 16:35:13.147 [TRACE] [CalculateTiming] Calculating delay for NAND with inputSlew=0.00756383 and loadCap=6.80092
+2025-06-24 16:35:13.147 [TRACE] [CalculateTiming] Calculating delay for NAND with inputSlew=0.0117162 and loadCap=6.80092
+2025-06-24 16:35:13.147 [TRACE] [Bilinear] Bilinear Params: x=0.00756 y=6.80092 | x1=0.00472 y1=3.70979 x2=0.01719 y2=7.41959 | q11=0.01730 q12=0.02636 q21=0.02364 q22=0.03251 | Result=0.02626
+2025-06-24 16:35:13.147 [TRACE] [Bilinear] Bilinear Params: x=0.01172 y=6.80092 | x1=0.00472 y1=3.70979 x2=0.01719 y2=7.41959 | q11=0.01730 q12=0.02636 q21=0.02364 q22=0.03251 | Result=0.02832
+2025-06-24 16:35:13.147 [TRACE] [CalculateTiming] Calculating slew for NAND with inputSlew=0.00756383 and loadCap=6.80092
+2025-06-24 16:35:13.147 [TRACE] [CalculateTiming] Calculating slew for NAND with inputSlew=0.0117162 and loadCap=6.80092
+2025-06-24 16:35:13.147 [TRACE] [Bilinear] Bilinear Params: x=0.00756 y=6.80092 | x1=0.00472 y1=3.70979 x2=0.01719 y2=7.41959 | q11=0.01238 q12=0.02084 q21=0.01302 q22=0.02085 | Result=0.01946
+2025-06-24 16:35:13.147 [TRACE] [Bilinear] Bilinear Params: x=0.01172 y=6.80092 | x1=0.00472 y1=3.70979 x2=0.01719 y2=7.41959 | q11=0.01238 q12=0.02084 q21=0.01302 q22=0.02085 | Result=0.01950
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]     Calculated: cellDelay=0.0262558, outputSlew=0.0194584 -> arrivalTime=0.0371665
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]     Calculated: cellDelay=0.0283164, outputSlew=0.0194953 -> arrivalTime=0.0625014
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]     New critical timing found for this gate.
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]     New critical timing found for this gate.
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]   Input #1: arrivalTime=0.034185, inputSlew=0.0117162
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]   Input #1: arrivalTime=0.0300894, inputSlew=0.00862598
+2025-06-24 16:35:13.147 [TRACE] [CalculateTiming] Calculating delay for NAND with inputSlew=0.0117162 and loadCap=6.80092
+2025-06-24 16:35:13.147 [TRACE] [CalculateTiming] Calculating delay for NAND with inputSlew=0.00862598 and loadCap=6.80092
+2025-06-24 16:35:13.147 [TRACE] [Bilinear] Bilinear Params: x=0.01172 y=6.80092 | x1=0.00472 y1=3.70979 x2=0.01719 y2=7.41959 | q11=0.01730 q12=0.02636 q21=0.02364 q22=0.03251 | Result=0.02832
+2025-06-24 16:35:13.147 [TRACE] [Bilinear] Bilinear Params: x=0.00863 y=6.80092 | x1=0.00472 y1=3.70979 x2=0.01719 y2=7.41959 | q11=0.01730 q12=0.02636 q21=0.02364 q22=0.03251 | Result=0.02678
+2025-06-24 16:35:13.147 [TRACE] [CalculateTiming] Calculating slew for NAND with inputSlew=0.0117162 and loadCap=6.80092
+2025-06-24 16:35:13.147 [TRACE] [CalculateTiming] Calculating slew for NAND with inputSlew=0.00862598 and loadCap=6.80092
+2025-06-24 16:35:13.147 [TRACE] [Bilinear] Bilinear Params: x=0.01172 y=6.80092 | x1=0.00472 y1=3.70979 x2=0.01719 y2=7.41959 | q11=0.01238 q12=0.02084 q21=0.01302 q22=0.02085 | Result=0.01950
+2025-06-24 16:35:13.147 [TRACE] [Bilinear] Bilinear Params: x=0.00863 y=6.80092 | x1=0.00472 y1=3.70979 x2=0.01719 y2=7.41959 | q11=0.01238 q12=0.02084 q21=0.01302 q22=0.02085 | Result=0.01947
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]     Calculated: cellDelay=0.0283164, outputSlew=0.0194953 -> arrivalTime=0.0625014
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]     Calculated: cellDelay=0.0267829, outputSlew=0.0194679 -> arrivalTime=0.0568723
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]     New critical timing found for this gate.
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]   Final values for NAND-n7: timeOut=0.0625014, slewOut=0.0194953
+2025-06-24 16:35:13.147 [TRACE] [FindOutput]   Final values for NAND-n6: timeOut=0.0625014, slewOut=0.0194953
+2025-06-24 16:35:13.147 [TRACE] [ExecForward]   Finished NAND-n7 -> timeOut: 0.06250, slewOut: 0.01950
+2025-06-24 16:35:13.147 [TRACE] [ExecForward]   Finished NAND-n6 -> timeOut: 0.06250, slewOut: 0.01950
+2025-06-24 16:35:13.147 [TRACE] [Execute] Forward pass finished. Calculating max delay.
+2025-06-24 16:35:13.148 [TRACE] [MaxDelay] Calculating maximum circuit delay.
+2025-06-24 16:35:13.148 [TRACE] [MaxDelay]   Output pad NAND-n6 time: 0.0625014
+2025-06-24 16:35:13.148 [TRACE] [MaxDelay]   Output pad NAND-n7 time: 0.0625014
+2025-06-24 16:35:13.148 [INFO] [MaxDelay] Maximum circuit delay calculated: 0.062501
+2025-06-24 16:35:13.148 [TRACE] [Execute] Starting backward pass execution.
+2025-06-24 16:35:13.148 [TRACE] [InitBackward] Initializing backward traversal.
+2025-06-24 16:35:13.148 [TRACE] [InitBackward] Setting PO NAND-n6 required time to 0.06250
+2025-06-24 16:35:13.148 [TRACE] [InitBackward] Setting PO NAND-n7 required time to 0.06250
+2025-06-24 16:35:13.148 [TRACE] [ExecBackward] Node NAND-n7: RequiredTime=0.06250, ArrivalTime=0.06250 -> Slack=0.00000
+2025-06-24 16:35:13.148 [TRACE] [ExecBackward] Node NAND-n6: RequiredTime=0.06250, ArrivalTime=0.06250 -> Slack=0.00000
+2025-06-24 16:35:13.148 [TRACE] [ExecBackward] Node NAND-n11: RequiredTime=0.03572, ArrivalTime=0.03009 -> Slack=0.00563
+2025-06-24 16:35:13.148 [TRACE] [ExecBackward] Node NAND-n10: RequiredTime=0.03418, ArrivalTime=0.03418 -> Slack=0.00000
+2025-06-24 16:35:13.148 [TRACE] [ExecBackward] Node PI-n5: RequiredTime=0.02481, ArrivalTime=0.00000 -> Slack=0.02481
+2025-06-24 16:35:13.148 [TRACE] [ExecBackward] Node NAND-n8: RequiredTime=0.03625, ArrivalTime=0.01091 -> Slack=0.02533
+2025-06-24 16:35:13.148 [TRACE] [ExecBackward] Node PI-n2: RequiredTime=0.01932, ArrivalTime=0.00000 -> Slack=0.01932
+2025-06-24 16:35:13.148 [TRACE] [ExecBackward] Node NAND-n9: RequiredTime=0.01486, ArrivalTime=0.01486 -> Slack=0.00000
+2025-06-24 16:35:13.148 [TRACE] [ExecBackward] Node PI-n1: RequiredTime=0.02533, ArrivalTime=0.00000 -> Slack=0.02533
+2025-06-24 16:35:13.148 [TRACE] [ExecBackward] Node PI-n3: RequiredTime=0.00000, ArrivalTime=0.00000 -> Slack=0.00000
+2025-06-24 16:35:13.148 [TRACE] [ExecBackward] Node PI-n4: RequiredTime=0.00000, ArrivalTime=0.00000 -> Slack=0.00000
+2025-06-24 16:35:13.148 [TRACE] [Execute] Backward pass finished.
+2025-06-24 16:35:13.148 [TRACE] [MAIN] Timing analysis complete.
+2025-06-24 16:35:13.148 [TRACE] [MAIN] Finding critical path.
+2025-06-24 16:35:13.148 [TRACE] [FindCriticalPath] Starting critical path search.
+2025-06-24 16:35:13.148 [TRACE] [FindCriticalPath] Starting backtracking from output NAND-n6
+2025-06-24 16:35:13.148 [TRACE] [FindCriticalPath]   Backtracking from NAND-n6 to NAND-n10
+2025-06-24 16:35:13.148 [TRACE] [FindCriticalPath]   Backtracking from NAND-n10 to NAND-n9
+2025-06-24 16:35:13.148 [TRACE] [FindCriticalPath]   Backtracking from NAND-n9 to PI-n3
+2025-06-24 16:35:13.148 [TRACE] [FindCriticalPath]   Adding PI PI-n3 to complete the path.
+2025-06-24 16:35:13.148 [INFO] [FindCriticalPath] Critical path search complete. Path has 4 nodes.
+2025-06-24 16:35:13.148 [INFO] [FindCriticalPath] Final Critical Path: INP-n3, NAND-n9, NAND-n10, NAND-n6
+2025-06-24 16:35:13.148 [TRACE] [MAIN] Critical path found.
+2025-06-24 16:35:13.148 [INFO] [MAIN] STA complete.
+2025-06-24 16:35:13.148 [INFO] [MAIN] 
+2025-06-24 16:35:13.148 [INFO] [MAIN] Writing output file...
+2025-06-24 16:35:13.148 [INFO] [MAIN] Output file written.
+2025-06-24 16:35:13.149 [INFO] [MAIN] 
+2025-06-24 16:35:13.149 [INFO] [MAIN] --- STA Tool Execution Complete ---
+2025-06-24 16:35:13.149 [TRACE] [Circuit] Circuit object destruction started.
+2025-06-24 16:35:13.150 [TRACE] [Circuit] Circuit object destruction finished.

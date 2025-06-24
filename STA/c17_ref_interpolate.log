@@ -1,0 +1,402 @@
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   3.198064
+  Indices: row1=6 row2=6 col1=2 col2=1
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.066352 v12=0.053716 v21=0.066352 v22=0.053716
+  Denominator near zero! Using fallback result = 0.066352
+  Interpolated Result: 0.066352
+------------------------
+-- Interpolate Call --
+  Type: SLEW
+  Input Slew: 2.000000
+  Load Cap:   3.198064
+  Indices: row1=6 row2=6 col1=2 col2=1
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.045253 v12=0.039160 v21=0.045253 v22=0.039160
+  Denominator near zero! Using fallback result = 0.045253
+  Interpolated Result: 0.045253
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   3.198064
+  Indices: row1=6 row2=6 col1=2 col2=1
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.066352 v12=0.053716 v21=0.066352 v22=0.053716
+  Denominator near zero! Using fallback result = 0.066352
+  Interpolated Result: 0.066352
+------------------------
+-- Interpolate Call --
+  Type: SLEW
+  Input Slew: 2.000000
+  Load Cap:   3.198064
+  Indices: row1=6 row2=6 col1=2 col2=1
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.045253 v12=0.039160 v21=0.045253 v22=0.039160
+  Denominator near zero! Using fallback result = 0.045253
+  Interpolated Result: 0.045253
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   1.599032
+  Indices: row1=6 row2=6 col1=1 col2=0
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.053716 v12=0.041599 v21=0.053716 v22=0.041599
+  Denominator near zero! Using fallback result = 0.053716
+  Interpolated Result: 0.053716
+------------------------
+-- Interpolate Call --
+  Type: SLEW
+  Input Slew: 2.000000
+  Load Cap:   1.599032
+  Indices: row1=6 row2=6 col1=1 col2=0
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.039160 v12=0.033763 v21=0.039160 v22=0.033763
+  Denominator near zero! Using fallback result = 0.039160
+  Interpolated Result: 0.039160
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   1.599032
+  Indices: row1=6 row2=6 col1=1 col2=0
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.053716 v12=0.041599 v21=0.053716 v22=0.041599
+  Denominator near zero! Using fallback result = 0.053716
+  Interpolated Result: 0.053716
+------------------------
+-- Interpolate Call --
+  Type: SLEW
+  Input Slew: 2.000000
+  Load Cap:   1.599032
+  Indices: row1=6 row2=6 col1=1 col2=0
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.039160 v12=0.033763 v21=0.039160 v22=0.033763
+  Denominator near zero! Using fallback result = 0.039160
+  Interpolated Result: 0.039160
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   3.198064
+  Indices: row1=6 row2=6 col1=2 col2=1
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.066352 v12=0.053716 v21=0.066352 v22=0.053716
+  Denominator near zero! Using fallback result = 0.066352
+  Interpolated Result: 0.066352
+------------------------
+-- Interpolate Call --
+  Type: SLEW
+  Input Slew: 2.000000
+  Load Cap:   3.198064
+  Indices: row1=6 row2=6 col1=2 col2=1
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.045253 v12=0.039160 v21=0.045253 v22=0.039160
+  Denominator near zero! Using fallback result = 0.045253
+  Interpolated Result: 0.045253
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 0.045253
+  Load Cap:   3.198064
+  Indices: row1=4 row2=3 col1=2 col2=1
+  Table Bounds: Slew=[ 0.078060, 0.040984 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.043833 v12=0.034888 v21=0.033636 v22=0.026671
+  Interpolated Result: 0.032826
+------------------------
+-- Interpolate Call --
+  Type: SLEW
+  Input Slew: 0.045253
+  Load Cap:   3.198064
+  Indices: row1=4 row2=3 col1=2 col2=1
+  Table Bounds: Slew=[ 0.078060, 0.040984 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.026668 v12=0.022083 v21=0.019146 v22=0.015676
+  Interpolated Result: 0.019020
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 0.045253
+  Load Cap:   1.599032
+  Indices: row1=4 row2=3 col1=1 col2=0
+  Table Bounds: Slew=[ 0.078060, 0.040984 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.034888 v12=0.026280 v21=0.026671 v22=0.019867
+  Interpolated Result: 0.026413
+------------------------
+-- Interpolate Call --
+  Type: SLEW
+  Input Slew: 0.045253
+  Load Cap:   1.599032
+  Indices: row1=4 row2=3 col1=1 col2=0
+  Table Bounds: Slew=[ 0.078060, 0.040984 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.022083 v12=0.017839 v21=0.015676 v22=0.012263
+  Interpolated Result: 0.015811
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   1.599032
+  Indices: row1=6 row2=6 col1=1 col2=0
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.053716 v12=0.041599 v21=0.053716 v22=0.041599
+  Denominator near zero! Using fallback result = 0.053716
+  Interpolated Result: 0.053716
+------------------------
+-- Interpolate Call --
+  Type: SLEW
+  Input Slew: 2.000000
+  Load Cap:   1.599032
+  Indices: row1=6 row2=6 col1=1 col2=0
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.039160 v12=0.033763 v21=0.039160 v22=0.033763
+  Denominator near zero! Using fallback result = 0.039160
+  Interpolated Result: 0.039160
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 0.039160
+  Load Cap:   6.800920
+  Indices: row1=3 row2=2 col1=3 col2=2
+  Table Bounds: Slew=[ 0.040984, 0.017186 ] Cap=[ 7.419590, 3.709790 ]
+  Corner Vals: v11=0.044885 v12=0.033636 v21=0.032510 v22=0.023639
+  Interpolated Result: 0.042091
+------------------------
+-- Interpolate Call --
+  Type: SLEW
+  Input Slew: 0.039160
+  Load Cap:   6.800920
+  Indices: row1=3 row2=2 col1=3 col2=2
+  Table Bounds: Slew=[ 0.040984, 0.017186 ] Cap=[ 7.419590, 3.709790 ]
+  Corner Vals: v11=0.024738 v12=0.019146 v21=0.020850 v22=0.013018
+  Interpolated Result: 0.023479
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 0.045253
+  Load Cap:   6.800920
+  Indices: row1=4 row2=3 col1=3 col2=2
+  Table Bounds: Slew=[ 0.078060, 0.040984 ] Cap=[ 7.419590, 3.709790 ]
+  Corner Vals: v11=0.058647 v12=0.043833 v21=0.044885 v22=0.033636
+  Interpolated Result: 0.044525
+------------------------
+-- Interpolate Call --
+  Type: SLEW
+  Input Slew: 0.045253
+  Load Cap:   6.800920
+  Indices: row1=4 row2=3 col1=3 col2=2
+  Table Bounds: Slew=[ 0.078060, 0.040984 ] Cap=[ 7.419590, 3.709790 ]
+  Corner Vals: v11=0.034212 v12=0.026668 v21=0.024738 v22=0.019146
+  Interpolated Result: 0.024859
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 0.045253
+  Load Cap:   6.800920
+  Indices: row1=4 row2=3 col1=3 col2=2
+  Table Bounds: Slew=[ 0.078060, 0.040984 ] Cap=[ 7.419590, 3.709790 ]
+  Corner Vals: v11=0.058647 v12=0.043833 v21=0.044885 v22=0.033636
+  Interpolated Result: 0.044525
+------------------------
+-- Interpolate Call --
+  Type: SLEW
+  Input Slew: 0.045253
+  Load Cap:   6.800920
+  Indices: row1=4 row2=3 col1=3 col2=2
+  Table Bounds: Slew=[ 0.078060, 0.040984 ] Cap=[ 7.419590, 3.709790 ]
+  Corner Vals: v11=0.034212 v12=0.026668 v21=0.024738 v22=0.019146
+  Interpolated Result: 0.024859
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 0.039160
+  Load Cap:   6.800920
+  Indices: row1=3 row2=2 col1=3 col2=2
+  Table Bounds: Slew=[ 0.040984, 0.017186 ] Cap=[ 7.419590, 3.709790 ]
+  Corner Vals: v11=0.044885 v12=0.033636 v21=0.032510 v22=0.023639
+  Interpolated Result: 0.042091
+------------------------
+-- Interpolate Call --
+  Type: SLEW
+  Input Slew: 0.039160
+  Load Cap:   6.800920
+  Indices: row1=3 row2=2 col1=3 col2=2
+  Table Bounds: Slew=[ 0.040984, 0.017186 ] Cap=[ 7.419590, 3.709790 ]
+  Corner Vals: v11=0.024738 v12=0.019146 v21=0.020850 v22=0.013018
+  Interpolated Result: 0.023479
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 0.039160
+  Load Cap:   6.800920
+  Indices: row1=3 row2=2 col1=3 col2=2
+  Table Bounds: Slew=[ 0.040984, 0.017186 ] Cap=[ 7.419590, 3.709790 ]
+  Corner Vals: v11=0.044885 v12=0.033636 v21=0.032510 v22=0.023639
+  Interpolated Result: 0.042091
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 0.045253
+  Load Cap:   6.800920
+  Indices: row1=4 row2=3 col1=3 col2=2
+  Table Bounds: Slew=[ 0.078060, 0.040984 ] Cap=[ 7.419590, 3.709790 ]
+  Corner Vals: v11=0.058647 v12=0.043833 v21=0.044885 v22=0.033636
+  Interpolated Result: 0.044525
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 0.045253
+  Load Cap:   6.800920
+  Indices: row1=4 row2=3 col1=3 col2=2
+  Table Bounds: Slew=[ 0.078060, 0.040984 ] Cap=[ 7.419590, 3.709790 ]
+  Corner Vals: v11=0.058647 v12=0.043833 v21=0.044885 v22=0.033636
+  Interpolated Result: 0.044525
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 0.039160
+  Load Cap:   6.800920
+  Indices: row1=3 row2=2 col1=3 col2=2
+  Table Bounds: Slew=[ 0.040984, 0.017186 ] Cap=[ 7.419590, 3.709790 ]
+  Corner Vals: v11=0.044885 v12=0.033636 v21=0.032510 v22=0.023639
+  Interpolated Result: 0.042091
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 0.045253
+  Load Cap:   3.198064
+  Indices: row1=4 row2=3 col1=2 col2=1
+  Table Bounds: Slew=[ 0.078060, 0.040984 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.043833 v12=0.034888 v21=0.033636 v22=0.026671
+  Interpolated Result: 0.032826
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 0.045253
+  Load Cap:   1.599032
+  Indices: row1=4 row2=3 col1=1 col2=0
+  Table Bounds: Slew=[ 0.078060, 0.040984 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.034888 v12=0.026280 v21=0.026671 v22=0.019867
+  Interpolated Result: 0.026413
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   1.599032
+  Indices: row1=6 row2=6 col1=1 col2=0
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.053716 v12=0.041599 v21=0.053716 v22=0.041599
+  Denominator near zero! Using fallback result = 0.053716
+  Interpolated Result: 0.053716
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   1.599032
+  Indices: row1=6 row2=6 col1=1 col2=0
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.053716 v12=0.041599 v21=0.053716 v22=0.041599
+  Denominator near zero! Using fallback result = 0.053716
+  Interpolated Result: 0.053716
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   3.198064
+  Indices: row1=6 row2=6 col1=2 col2=1
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.066352 v12=0.053716 v21=0.066352 v22=0.053716
+  Denominator near zero! Using fallback result = 0.066352
+  Interpolated Result: 0.066352
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   3.198064
+  Indices: row1=6 row2=6 col1=2 col2=1
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.066352 v12=0.053716 v21=0.066352 v22=0.053716
+  Denominator near zero! Using fallback result = 0.066352
+  Interpolated Result: 0.066352
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   1.599032
+  Indices: row1=6 row2=6 col1=1 col2=0
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.053716 v12=0.041599 v21=0.053716 v22=0.041599
+  Denominator near zero! Using fallback result = 0.053716
+  Interpolated Result: 0.053716
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   3.198064
+  Indices: row1=6 row2=6 col1=2 col2=1
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.066352 v12=0.053716 v21=0.066352 v22=0.053716
+  Denominator near zero! Using fallback result = 0.066352
+  Interpolated Result: 0.066352
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   1.599032
+  Indices: row1=6 row2=6 col1=1 col2=0
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.053716 v12=0.041599 v21=0.053716 v22=0.041599
+  Denominator near zero! Using fallback result = 0.053716
+  Interpolated Result: 0.053716
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   3.198064
+  Indices: row1=6 row2=6 col1=2 col2=1
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.066352 v12=0.053716 v21=0.066352 v22=0.053716
+  Denominator near zero! Using fallback result = 0.066352
+  Interpolated Result: 0.066352
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   3.198064
+  Indices: row1=6 row2=6 col1=2 col2=1
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.066352 v12=0.053716 v21=0.066352 v22=0.053716
+  Denominator near zero! Using fallback result = 0.066352
+  Interpolated Result: 0.066352
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   3.198064
+  Indices: row1=6 row2=6 col1=2 col2=1
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 3.709790, 1.854900 ]
+  Corner Vals: v11=0.066352 v12=0.053716 v21=0.066352 v22=0.053716
+  Denominator near zero! Using fallback result = 0.066352
+  Interpolated Result: 0.066352
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   1.599032
+  Indices: row1=6 row2=6 col1=1 col2=0
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.053716 v12=0.041599 v21=0.053716 v22=0.041599
+  Denominator near zero! Using fallback result = 0.053716
+  Interpolated Result: 0.053716
+------------------------
+-- Interpolate Call --
+  Type: DELAY
+  Input Slew: 2.000000
+  Load Cap:   1.599032
+  Indices: row1=6 row2=6 col1=1 col2=0
+  Table Bounds: Slew=[ 0.198535, 0.198535 ] Cap=[ 1.854900, 0.365616 ]
+  Corner Vals: v11=0.053716 v12=0.041599 v21=0.053716 v22=0.041599
+  Denominator near zero! Using fallback result = 0.053716
+  Interpolated Result: 0.053716
+------------------------
