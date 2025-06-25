@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wall -Wextra -pthread -O3 -DNDEBUG CMakeFiles/sta.dir/src/main.cpp.o CMakeFiles/sta.dir/src/Circuit.cpp.o CMakeFiles/sta.dir/src/CircuitNode.cpp.o CMakeFiles/sta.dir/src/GateDatabase.cpp.o CMakeFiles/sta.dir/src/TaskflowTimingEngine.cpp.o CMakeFiles/sta.dir/src/TimingUtils.cpp.o CMakeFiles/sta.dir/src/Logger.cpp.o -o sta  -lpthread 

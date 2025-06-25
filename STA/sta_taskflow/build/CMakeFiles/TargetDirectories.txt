@@ -1,0 +1,5 @@
+/home/nishant/EDA/STA/sta_taskflow/build/CMakeFiles/sta.dir
+/home/nishant/EDA/STA/sta_taskflow/build/CMakeFiles/validate.dir
+/home/nishant/EDA/STA/sta_taskflow/build/CMakeFiles/performance.dir
+/home/nishant/EDA/STA/sta_taskflow/build/CMakeFiles/edit_cache.dir
+/home/nishant/EDA/STA/sta_taskflow/build/CMakeFiles/rebuild_cache.dir
