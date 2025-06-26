@@ -17,11 +17,23 @@ void outputCircuitTraversal(Circuit &circuit, double total_delay,
                            const std::string& outputFile, bool printToTerminal, 
                            bool printToFile);
 
-// Stubs for functions that need to be implemented
 void convertDFFs(Circuit &circuit) {
-    // The logic from the design doc for DFF conversion can be added here.
-    // For now, it's empty as it was in the user's code.
-    (void)circuit; // Mark as unused to prevent compiler warnings
+    LOG_INFO("ConvertDFFs", "Converting DFFs to primary inputs/outputs for analysis.");
+    auto& nodes = circuit.get_nodes_vector();
+    for (unsigned int nodeNum = 0; nodeNum < nodes.size(); nodeNum++) {
+        if (nodes[nodeNum] != NULL) {
+            if (nodes[nodeNum]->get_gate_type() == "DFF") {
+                // For every DFF, we must make its input a primary output
+                // and the DFF itself a primary input
+                unsigned int tempNodeNum = nodes[nodeNum]->get_fanin_list()[0];
+                nodes[tempNodeNum]->set_output_pad(true);
+
+                nodes[nodeNum]->fanin_list_.clear();
+                nodes[nodeNum]->set_input_pad(true);
+                nodes[nodeNum]->set_gate_type(""); // No longer a gate
+            }
+        }
+    }
 }
 
 void createFanOutLists(Circuit &circuit) {
@@ -106,10 +118,9 @@ int main(int argc, char* argv[]) {
         LOG_INFO("MAIN", "Circuit netlist parsed successfully.");
         LOG_INFO("MAIN", "");
 
-        LOG_TRACE("MAIN", "Preparing circuit graph (DFF conversion, Fanout lists).");
         convertDFFs(circuit);
         createFanOutLists(circuit);
-        LOG_TRACE("MAIN", "Circuit graph preparation complete.");
+
         LOG_INFO("MAIN", "");
 
         LOG_INFO("MAIN", "Performing Static Timing Analysis...");
